@@ -11,7 +11,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
         builder.Environment.IsDevelopment() 
             ? builder.Configuration.GetConnectionString("DefaultConnection")
-            : Environment.GetEnvironmentVariable("DATABASE_PUBLIC_URL")));
+            : builder.Configuration["DATABASE_PUBLIC_URL"]));
 
 var app = builder.Build();
 
