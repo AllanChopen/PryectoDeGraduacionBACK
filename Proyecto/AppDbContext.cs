@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Proyecto;
+using Proyecto.Models;
 
 public class AppDbContext : DbContext
 {
@@ -9,6 +10,15 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<DbTest> DbTests => Set<DbTest>();
+    public DbSet<Usuario> Usuarios => Set<Usuario>();
+    public DbSet<Banda> Bandas => Set<Banda>();
+    public DbSet<Subscriptor> Subscriptores => Set<Subscriptor>();
+    public DbSet<Producto> Productos => Set<Producto>();
+    public DbSet<Evento> Eventos => Set<Evento>();
+    public DbSet<Orden> Ordenes => Set<Orden>();
+    public DbSet<OrdenDetalle> OrdenesDetalle => Set<OrdenDetalle>();
+    public DbSet<Ticket> Tickets => Set<Ticket>();
+    public DbSet<Publicacion> Publicaciones => Set<Publicacion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
