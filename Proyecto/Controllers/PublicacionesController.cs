@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Proyecto.DTOs;
 using Proyecto.Models;
 
 namespace Proyecto.Controllers;
@@ -70,5 +71,79 @@ public class PublicacionesController : ControllerBase
         _context.Publicaciones.Remove(item);
         await _context.SaveChangesAsync();
         return NoContent();
+    }
+
+    [HttpGet("public/{slug}")]
+    public async Task<ActionResult<IEnumerable<PublicacionDto>>> GetPublicBySlug(string slug)
+    {
+        var bandaId = await _context.Bandas
+            .Where(x => x.Slug == slug)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        if (bandaId == 0)
+        {
+            return NotFound("Banda no encontrada.");
+        }
+
+        var publicaciones = await _context.Publicaciones
+            .AsNoTracking()
+            .Where(x => x.BandaId == bandaId && x.Estado == "publicada")
+            .OrderByDescending(x => x.FechaPublicacion)
+            .Select(x => new PublicacionDto
+            {
+                Id = x.Id,
+                Uuid = x.Uuid,
+                BandaId = x.BandaId,
+                Titulo = x.Titulo,
+                Contenido = x.Contenido,
+                ImagenUrl = x.ImagenUrl,
+                FechaPublicacion = x.FechaPublicacion,
+                Estado = x.Estado,
+                CreatedAt = x.CreatedAt,
+                UpdatedAt = x.UpdatedAt
+            })
+            .ToListAsync();
+
+        return Ok(publicaciones);
+    }
+
+    [HttpGet("public/{slug}/{id:int}")]
+    public async Task<ActionResult<PublicacionDto>> GetPublicById(string slug, int id)
+    {
+        var bandaId = await _context.Bandas
+            .Where(x => x.Slug == slug)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        if (bandaId == 0)
+        {
+            return NotFound("Banda no encontrada.");
+        }
+
+        var publicacion = await _context.Publicaciones
+            .AsNoTracking()
+            .Where(x =>
+                x.Id == id &&
+                x.BandaId == bandaId &&
+                x.Estado == "publicada")
+            .Select(x => new PublicacionDto
+            {
+                Id = x.Id,
+                Uuid = x.Uuid,
+                BandaId = x.BandaId,
+                Titulo = x.Titulo,
+                Contenido = x.Contenido,
+                ImagenUrl = x.ImagenUrl,
+                FechaPublicacion = x.FechaPublicacion,
+                Estado = x.Estado,
+                CreatedAt = x.CreatedAt,
+                UpdatedAt = x.UpdatedAt
+            })
+            .FirstOrDefaultAsync();
+
+        return publicacion is null
+            ? NotFound("Publicación no encontrada.")
+            : Ok(publicacion);
     }
 }

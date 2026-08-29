@@ -37,4 +37,7 @@ public class Banda
 
     [Column("timestamp")]
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+    [Column("slug")]
+    public string Slug { get; set; } = string.Empty;
 }

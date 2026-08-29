@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Proyecto.Models;
+using Proyecto.DTOs;
 
 namespace Proyecto.Controllers;
 
@@ -70,5 +71,38 @@ public class BandasController : ControllerBase
         _context.Bandas.Remove(item);
         await _context.SaveChangesAsync();
         return NoContent();
+    }
+
+    [HttpGet("public/{slug}")]
+    public async Task<ActionResult<BandaDto>> GetPublicBySlug(string slug)
+    {
+        try
+        {
+            var banda = await _context.Bandas
+                .AsNoTracking()
+                .Where(x => x.Slug == slug)
+                .Select(x => new BandaDto
+                {
+                    Uuid = x.Uuid,
+                    Nombre = x.Nombre,
+                    Slug = x.Slug,
+                    Descripcion = x.Descripcion,
+                    Biografia = x.Biografia,
+                    ImagenUrl = x.ImagenUrl,
+                    Genero = x.Genero
+                })
+                .FirstOrDefaultAsync();
+
+            return banda is null ? NotFound() : Ok(banda);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                message = ex.Message,
+                innerException = ex.InnerException?.Message,
+                innerInnerException = ex.InnerException?.InnerException?.Message
+            });
+        }
     }
 }
