@@ -1,10 +1,26 @@
 using Microsoft.EntityFrameworkCore;
+using Amazon;
+using Amazon.S3;
+using PryectoDeGraduacionBACK.Services.S3;
 
 var builder = WebApplication.CreateBuilder(args);
+var awsRegion = builder.Configuration["AWS:Region"];
+var awsAccessKey = builder.Configuration["AWS:AccessKey"];
+var awsSecretKey = builder.Configuration["AWS:SecretKey"];
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+//Amazon S3
+builder.Services.AddSingleton<IAmazonS3>(_ =>
+    new AmazonS3Client(
+        awsAccessKey,
+        awsSecretKey,
+        RegionEndpoint.GetBySystemName(awsRegion)
+    ));
+
+builder.Services.AddScoped<IS3Service, S3Service>();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -14,10 +30,7 @@ builder.Services.AddCors(options =>
         if (builder.Environment.IsDevelopment())
         {
             policy
-                .WithOrigins(
-                    "http://localhost:5173",
-                    "http://localhost:5174"
-                )
+                .AllowAnyOrigin()
                 .AllowAnyHeader()
                 .AllowAnyMethod();
         }

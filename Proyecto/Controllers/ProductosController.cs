@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Proyecto.Models;
+using Proyecto.DTOs;
 
 namespace Proyecto.Controllers;
 
@@ -71,4 +72,103 @@ public class ProductosController : ControllerBase
         await _context.SaveChangesAsync();
         return NoContent();
     }
+    
+        
+    [HttpGet("public/{slug}")]
+    public async Task<ActionResult<IEnumerable<ProductoPublicDto>>> GetPublicBySlug(string slug)
+    {
+        var bandaId = await _context.Bandas
+            .Where(x => x.Slug == slug)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        if (bandaId == 0)
+        {
+            return NotFound("Banda no encontrada.");
+        }
+
+        var productos = await _context.Productos
+            .AsNoTracking()
+            .Where(x => x.BandaId == bandaId && x.Disponible)
+            .Select(x => new ProductoPublicDto
+            {
+                Uuid = x.Uuid,
+                Nombre = x.Nombre,
+                Descripcion = x.Descripcion,
+                Precio = x.Precio,
+                Disponible = x.Disponible,
+                Stock = x.Stock,
+
+                Variaciones = _context.ProductoVariaciones
+                    .Where(v =>
+                        v.ProductoId == x.Id &&
+                        v.Disponible)
+                    .Select(v => new ProductoVariacionDto
+                    {
+                        Uuid = v.Uuid,
+                        Nombre = v.Nombre,
+                        Precio = v.Precio,
+                        Stock = v.Stock,
+                        Disponible = v.Disponible,
+                        Atributos = v.Atributos
+                    })
+                    .ToList()
+            })
+            .ToListAsync();
+
+        return Ok(productos);
+    }
+    
+    [HttpGet("public/{slug}/{id:int}")]
+    public async Task<ActionResult<ProductoPublicDto>> GetPublicById(
+        string slug,
+        int id)
+    {
+        var bandaId = await _context.Bandas
+            .Where(x => x.Slug == slug)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        if (bandaId == 0)
+        {
+            return NotFound("Banda no encontrada.");
+        }
+
+        var producto = await _context.Productos
+            .AsNoTracking()
+            .Where(x =>
+                x.Id == id &&
+                x.BandaId == bandaId &&
+                x.Disponible)
+            .Select(x => new ProductoPublicDto
+            {
+                Uuid = x.Uuid,
+                Nombre = x.Nombre,
+                Descripcion = x.Descripcion,
+                Precio = x.Precio,
+                Disponible = x.Disponible,
+                Stock = x.Stock,
+
+                Variaciones = _context.ProductoVariaciones
+                    .Where(v =>
+                        v.ProductoId == x.Id &&
+                        v.Disponible)
+                    .Select(v => new ProductoVariacionDto
+                    {
+                        Uuid = v.Uuid,
+                        Nombre = v.Nombre,
+                        Precio = v.Precio,
+                        Stock = v.Stock,
+                        Disponible = v.Disponible,
+                        Atributos = v.Atributos
+                    })
+                    .ToList()
+            })
+            .FirstOrDefaultAsync();
+
+        return producto is null
+            ? NotFound("Producto no encontrado.")
+            : Ok(producto);
+    }
+
 }

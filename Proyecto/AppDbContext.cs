@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<OrdenDetalle> OrdenesDetalle => Set<OrdenDetalle>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<Publicacion> Publicaciones => Set<Publicacion>();
+    public DbSet<ProductoVariacion> ProductoVariaciones => Set<ProductoVariacion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
