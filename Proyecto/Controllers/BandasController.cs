@@ -30,36 +30,53 @@ public class BandasController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Banda>> Create([FromBody] Banda item)
+    public async Task<ActionResult<Banda>> Create([FromBody] CreateBandaDto dto)
     {
-        item.UpdatedAt = DateTime.UtcNow;
+        var item = new Banda
+        {
+            Uuid = Guid.NewGuid(),
+            Nombre = dto.Nombre,
+            Descripcion = dto.Descripcion,
+            Biografia = dto.Biografia,
+            ImagenUrl = dto.ImagenUrl,
+            Genero = dto.Genero,
+            UsuarioId = dto.UsuarioId,
+            Slug = dto.Slug,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Timestamp = DateTime.UtcNow
+        };
+
         _context.Bandas.Add(item);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Banda item)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateBandaDto dto)
     {
-        if (id != item.Id)
-        {
-            return BadRequest("El id de la ruta no coincide con el cuerpo.");
-        }
-
-        var exists = await _context.Bandas.AnyAsync(x => x.Id == id);
-        if (!exists)
+        var item = await _context.Bandas.FindAsync(id);
+        if (item is null)
         {
             return NotFound();
         }
 
+        item.Nombre = dto.Nombre;
+        item.Descripcion = dto.Descripcion;
+        item.Biografia = dto.Biografia;
+        item.ImagenUrl = dto.ImagenUrl;
+        item.Genero = dto.Genero;
+        item.UsuarioId = dto.UsuarioId;
+        item.Slug = dto.Slug;
         item.UpdatedAt = DateTime.UtcNow;
-        _context.Entry(item).State = EntityState.Modified;
+
         await _context.SaveChangesAsync();
 
         return NoContent();
     }
 
     [HttpDelete("{id:int}")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "admin")]
     public async Task<IActionResult> Delete(int id)
     {
         var item = await _context.Bandas.FindAsync(id);

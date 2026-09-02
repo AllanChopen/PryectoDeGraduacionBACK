@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Proyecto.DTOs;
 using Proyecto.Models;
 
 namespace Proyecto.Controllers;
@@ -29,30 +30,38 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Orden>> Create([FromBody] Orden item)
+    public async Task<ActionResult<Orden>> Create([FromBody] CreateOrdenDto dto)
     {
-        item.UpdatedAt = DateTime.UtcNow;
+        var item = new Orden
+        {
+            Uuid = Guid.NewGuid(),
+            UsuarioId = dto.UsuarioId,
+            Estado = dto.Estado,
+            Total = dto.Total,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Timestamp = DateTime.UtcNow
+        };
+
         _context.Ordenes.Add(item);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Orden item)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateOrdenDto dto)
     {
-        if (id != item.Id)
-        {
-            return BadRequest("El id de la ruta no coincide con el cuerpo.");
-        }
-
-        var exists = await _context.Ordenes.AnyAsync(x => x.Id == id);
-        if (!exists)
+        var item = await _context.Ordenes.FindAsync(id);
+        if (item is null)
         {
             return NotFound();
         }
 
+        item.UsuarioId = dto.UsuarioId;
+        item.Estado = dto.Estado;
+        item.Total = dto.Total;
         item.UpdatedAt = DateTime.UtcNow;
-        _context.Entry(item).State = EntityState.Modified;
+
         await _context.SaveChangesAsync();
 
         return NoContent();

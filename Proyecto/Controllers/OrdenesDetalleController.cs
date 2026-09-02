@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Proyecto.DTOs;
 using Proyecto.Models;
 
 namespace Proyecto.Controllers;
@@ -29,30 +30,41 @@ public class OrdenesDetalleController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<OrdenDetalle>> Create([FromBody] OrdenDetalle item)
+    public async Task<ActionResult<OrdenDetalle>> Create([FromBody] CreateOrdenDetalleDto dto)
     {
-        item.UpdatedAt = DateTime.UtcNow;
+        var item = new OrdenDetalle
+        {
+            Uuid = Guid.NewGuid(),
+            OrdenId = dto.OrdenId,
+            ProductoId = dto.ProductoId,
+            Cantidad = dto.Cantidad,
+            PrecioUnitario = dto.PrecioUnitario,
+            Subtotal = dto.Subtotal,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
         _context.OrdenesDetalle.Add(item);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] OrdenDetalle item)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateOrdenDetalleDto dto)
     {
-        if (id != item.Id)
-        {
-            return BadRequest("El id de la ruta no coincide con el cuerpo.");
-        }
-
-        var exists = await _context.OrdenesDetalle.AnyAsync(x => x.Id == id);
-        if (!exists)
+        var item = await _context.OrdenesDetalle.FindAsync(id);
+        if (item is null)
         {
             return NotFound();
         }
 
+        item.OrdenId = dto.OrdenId;
+        item.ProductoId = dto.ProductoId;
+        item.Cantidad = dto.Cantidad;
+        item.PrecioUnitario = dto.PrecioUnitario;
+        item.Subtotal = dto.Subtotal;
         item.UpdatedAt = DateTime.UtcNow;
-        _context.Entry(item).State = EntityState.Modified;
+
         await _context.SaveChangesAsync();
 
         return NoContent();

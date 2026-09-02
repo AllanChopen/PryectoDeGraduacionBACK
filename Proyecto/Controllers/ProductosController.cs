@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Proyecto.Models;
 using Proyecto.DTOs;
+using Proyecto.Models;
 
 namespace Proyecto.Controllers;
 
@@ -19,6 +19,20 @@ public class ProductosController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Producto>>> GetAll()
     {
+        // If the caller is a bandadmin, limit to their banda using the BandaId claim
+        if (User?.Identity?.IsAuthenticated == true && User.IsInRole("bandadmin"))
+        {
+            var bandaClaim = User.FindFirst("BandaId")?.Value;
+            if (int.TryParse(bandaClaim, out var bandaId) && bandaId > 0)
+            {
+                var list = await _context.Productos
+                    .AsNoTracking()
+                    .Where(p => p.BandaId == bandaId)
+                    .ToListAsync();
+                return Ok(list);
+            }
+        }
+
         return Ok(await _context.Productos.AsNoTracking().ToListAsync());
     }
 
@@ -30,30 +44,44 @@ public class ProductosController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Producto>> Create([FromBody] Producto item)
+    public async Task<ActionResult<Producto>> Create([FromBody] CreateProductoDto dto)
     {
-        item.UpdatedAt = DateTime.UtcNow;
+        var item = new Producto
+        {
+            Uuid = Guid.NewGuid(),
+            BandaId = dto.BandaId,
+            Nombre = dto.Nombre,
+            Descripcion = dto.Descripcion,
+            Precio = dto.Precio,
+            Disponible = dto.Disponible,
+            Stock = dto.Stock,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Timestamp = DateTime.UtcNow
+        };
+
         _context.Productos.Add(item);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Producto item)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateProductoDto dto)
     {
-        if (id != item.Id)
-        {
-            return BadRequest("El id de la ruta no coincide con el cuerpo.");
-        }
-
-        var exists = await _context.Productos.AnyAsync(x => x.Id == id);
-        if (!exists)
+        var item = await _context.Productos.FindAsync(id);
+        if (item is null)
         {
             return NotFound();
         }
 
+        item.BandaId = dto.BandaId;
+        item.Nombre = dto.Nombre;
+        item.Descripcion = dto.Descripcion;
+        item.Precio = dto.Precio;
+        item.Disponible = dto.Disponible;
+        item.Stock = dto.Stock;
         item.UpdatedAt = DateTime.UtcNow;
-        _context.Entry(item).State = EntityState.Modified;
+
         await _context.SaveChangesAsync();
 
         return NoContent();

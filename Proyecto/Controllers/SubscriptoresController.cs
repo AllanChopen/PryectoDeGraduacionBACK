@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Proyecto.DTOs;
 using Proyecto.Models;
 
 namespace Proyecto.Controllers;
@@ -29,30 +30,43 @@ public class SubscriptoresController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Subscriptor>> Create([FromBody] Subscriptor item)
+    public async Task<ActionResult<Subscriptor>> Create([FromBody] CreateSubscriptorDto dto)
     {
-        item.UpdatedAt = DateTime.UtcNow;
+        var item = new Subscriptor
+        {
+            Uuid = Guid.NewGuid(),
+            BandaId = dto.BandaId,
+            UsuarioId = dto.UsuarioId,
+            TipoSuscripcion = dto.TipoSuscripcion,
+            Estado = dto.Estado,
+            FechaInicio = DateTime.UtcNow,
+            FechaFin = null,
+            SuscripcionEn = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
         _context.Subscriptores.Add(item);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Subscriptor item)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateSubscriptorDto dto)
     {
-        if (id != item.Id)
-        {
-            return BadRequest("El id de la ruta no coincide con el cuerpo.");
-        }
-
-        var exists = await _context.Subscriptores.AnyAsync(x => x.Id == id);
-        if (!exists)
+        var item = await _context.Subscriptores.FindAsync(id);
+        if (item is null)
         {
             return NotFound();
         }
 
+        item.BandaId = dto.BandaId;
+        item.UsuarioId = dto.UsuarioId;
+        item.TipoSuscripcion = dto.TipoSuscripcion;
+        item.Estado = dto.Estado;
+        item.FechaFin = dto.FechaFin;
         item.UpdatedAt = DateTime.UtcNow;
-        _context.Entry(item).State = EntityState.Modified;
+
         await _context.SaveChangesAsync();
 
         return NoContent();

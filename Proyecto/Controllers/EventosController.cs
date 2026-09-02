@@ -19,6 +19,20 @@ public class EventosController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Evento>>> GetAll()
     {
+        // If the caller is a bandadmin, limit to their banda using the BandaId claim
+        if (User?.Identity?.IsAuthenticated == true && User.IsInRole("bandadmin"))
+        {
+            var bandaClaim = User.FindFirst("BandaId")?.Value;
+            if (int.TryParse(bandaClaim, out var bandaId) && bandaId > 0)
+            {
+                var list = await _context.Eventos
+                    .AsNoTracking()
+                    .Where(e => e.BandaId == bandaId)
+                    .ToListAsync();
+                return Ok(list);
+            }
+        }
+
         return Ok(await _context.Eventos.AsNoTracking().ToListAsync());
     }
 
@@ -30,30 +44,52 @@ public class EventosController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Evento>> Create([FromBody] Evento item)
+    public async Task<ActionResult<Evento>> Create([FromBody] CreateEventoDto dto)
     {
-        item.UpdatedAt = DateTime.UtcNow;
+        var item = new Evento
+        {
+            Uuid = Guid.NewGuid(),
+            BandaId = dto.BandaId,
+            Nombre = dto.Nombre,
+            Descripcion = dto.Descripcion,
+            Fecha = dto.Fecha,
+            Hora = dto.Hora,
+            Ubicacion = dto.Ubicacion,
+            UbicacionUrl = dto.UbicacionUrl,
+            Capacidad = dto.Capacidad,
+            PrecioEntrada = dto.PrecioEntrada,
+            Estado = dto.Estado,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Timestamp = DateTime.UtcNow
+        };
+
         _context.Eventos.Add(item);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Evento item)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateEventoDto dto)
     {
-        if (id != item.Id)
-        {
-            return BadRequest("El id de la ruta no coincide con el cuerpo.");
-        }
-
-        var exists = await _context.Eventos.AnyAsync(x => x.Id == id);
-        if (!exists)
+        var item = await _context.Eventos.FindAsync(id);
+        if (item is null)
         {
             return NotFound();
         }
 
+        item.BandaId = dto.BandaId;
+        item.Nombre = dto.Nombre;
+        item.Descripcion = dto.Descripcion;
+        item.Fecha = dto.Fecha;
+        item.Hora = dto.Hora;
+        item.Ubicacion = dto.Ubicacion;
+        item.UbicacionUrl = dto.UbicacionUrl;
+        item.Capacidad = dto.Capacidad;
+        item.PrecioEntrada = dto.PrecioEntrada;
+        item.Estado = dto.Estado;
         item.UpdatedAt = DateTime.UtcNow;
-        _context.Entry(item).State = EntityState.Modified;
+
         await _context.SaveChangesAsync();
 
         return NoContent();

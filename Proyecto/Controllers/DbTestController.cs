@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Proyecto;
+using Proyecto.DTOs;
 
 namespace Proyecto.Controllers;
 
@@ -35,7 +35,7 @@ public class DbTestController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<DbTest>> Create([FromBody] DbTest request)
+    public async Task<ActionResult<DbTest>> Create([FromBody] CreateDbTestDto request)
     {
         if (string.IsNullOrWhiteSpace(request.Prueba))
         {
@@ -47,7 +47,7 @@ public class DbTestController : ControllerBase
     }
 
     [HttpPut("{prueba}")]
-    public async Task<IActionResult> Update(string prueba, [FromBody] DbTest request)
+    public async Task<IActionResult> Update(string prueba, [FromBody] UpdateDbTestDto request)
     {
         if (string.IsNullOrWhiteSpace(request.Prueba))
         {

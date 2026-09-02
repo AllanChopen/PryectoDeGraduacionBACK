@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Proyecto.DTOs;
 using Proyecto.Models;
 
 namespace Proyecto.Controllers;
@@ -29,30 +30,41 @@ public class TicketsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Ticket>> Create([FromBody] Ticket item)
+    public async Task<ActionResult<Ticket>> Create([FromBody] CreateTicketDto dto)
     {
-        item.UpdatedAt = DateTime.UtcNow;
+        var item = new Ticket
+        {
+            Uuid = Guid.NewGuid(),
+            EventoId = dto.EventoId,
+            OrdenId = dto.OrdenId,
+            Estado = dto.Estado,
+            CodigoQr = Guid.NewGuid().ToString("N"),
+            UsedDate = null,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Timestamp = DateTime.UtcNow
+        };
+
         _context.Tickets.Add(item);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Ticket item)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateTicketDto dto)
     {
-        if (id != item.Id)
-        {
-            return BadRequest("El id de la ruta no coincide con el cuerpo.");
-        }
-
-        var exists = await _context.Tickets.AnyAsync(x => x.Id == id);
-        if (!exists)
+        var item = await _context.Tickets.FindAsync(id);
+        if (item is null)
         {
             return NotFound();
         }
 
+        item.EventoId = dto.EventoId;
+        item.OrdenId = dto.OrdenId;
+        item.Estado = dto.Estado;
+        item.UsedDate = dto.UsedDate;
         item.UpdatedAt = DateTime.UtcNow;
-        _context.Entry(item).State = EntityState.Modified;
+
         await _context.SaveChangesAsync();
 
         return NoContent();
