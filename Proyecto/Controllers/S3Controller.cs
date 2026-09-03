@@ -21,15 +21,10 @@ public class S3Controller : ControllerBase
     {
         var image = request.Image;
 
-        if (image.Length == 0)
+        var imageError = ImageFileValidator.Validate(image);
+        if (imageError is not null)
         {
-            return BadRequest("La imagen está vacía.");
-        }
-
-        if (string.IsNullOrWhiteSpace(image.ContentType) ||
-            !image.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-        {
-            return BadRequest("El archivo debe ser una imagen.");
+            return BadRequest(imageError);
         }
 
         await using var stream = image.OpenReadStream();

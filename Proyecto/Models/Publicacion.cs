@@ -26,9 +26,6 @@ public class Publicacion
     [Column("fecha_publicacion")]
     public DateTime FechaPublicacion { get; set; } = DateTime.UtcNow;
 
-    [Column("estado")]
-    public string Estado { get; set; } = "publicada";
-
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

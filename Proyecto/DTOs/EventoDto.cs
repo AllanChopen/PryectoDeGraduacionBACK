@@ -11,6 +11,7 @@ public class EventoDto
     public TimeOnly? Hora { get; set; }
     public string? Ubicacion { get; set; }
     public string? UbicacionUrl { get; set; }
+    public string? ImagenUrl { get; set; }
     public int? Capacidad { get; set; }
     public decimal? PrecioEntrada { get; set; }
     public string Estado { get; set; } = string.Empty;

@@ -26,8 +26,8 @@ public class Producto
     [Column("disponible")]
     public bool Disponible { get; set; } = true;
 
-    [Column("stock")]
-    public int? Stock { get; set; }
+    [Column("imagen_url")]
+    public string? ImagenUrl { get; set; }
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

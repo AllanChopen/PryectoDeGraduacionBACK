@@ -8,5 +8,9 @@ public interface IS3Service
         string contentType,
         string folder);
 
+    string GetPublicUrl(string key);
+
     Task DeleteAsync(string key);
+
+    Task DeleteByUrlAsync(string fileUrl);
 }

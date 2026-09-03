@@ -1,61 +1,99 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Proyecto.DTOs;
 using Proyecto.Models;
+using PryectoDeGraduacionBACK.Services.S3;
 
 namespace Proyecto.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "bandadmin")]
 public class EventosController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IS3Service _s3Service;
 
-    public EventosController(AppDbContext context)
+    public EventosController(AppDbContext context, IS3Service s3Service)
     {
         _context = context;
+        _s3Service = s3Service;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Evento>>> GetAll()
     {
-        // If the caller is a bandadmin, limit to their banda using the BandaId claim
-        if (User?.Identity?.IsAuthenticated == true && User.IsInRole("bandadmin"))
+        if (!TryGetBandaId(out var bandaId))
         {
-            var bandaClaim = User.FindFirst("BandaId")?.Value;
-            if (int.TryParse(bandaClaim, out var bandaId) && bandaId > 0)
-            {
-                var list = await _context.Eventos
-                    .AsNoTracking()
-                    .Where(e => e.BandaId == bandaId)
-                    .ToListAsync();
-                return Ok(list);
-            }
+            return Unauthorized("No se encontró la banda del usuario.");
         }
 
-        return Ok(await _context.Eventos.AsNoTracking().ToListAsync());
+        var eventos = await _context.Eventos
+            .AsNoTracking()
+            .Where(evento => evento.BandaId == bandaId)
+            .ToListAsync();
+
+        return Ok(eventos);
     }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<Evento>> GetById(int id)
     {
-        var item = await _context.Eventos.FindAsync(id);
+        if (!TryGetBandaId(out var bandaId))
+        {
+            return Unauthorized("No se encontró la banda del usuario.");
+        }
+
+        var item = await _context.Eventos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(evento =>
+                evento.Id == id &&
+                evento.BandaId == bandaId);
+
         return item is null ? NotFound() : Ok(item);
     }
 
     [HttpPost]
-    public async Task<ActionResult<Evento>> Create([FromBody] CreateEventoDto dto)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<Evento>> Create([FromForm] CreateEventoDto dto)
     {
+        if (!TryGetBandaId(out var bandaId))
+        {
+            return Unauthorized("No se encontró la banda del usuario.");
+        }
+
+        var imageError = ImageFileValidator.Validate(dto.Imagen);
+        if (imageError is not null)
+        {
+            return BadRequest(imageError);
+        }
+
+        string? imageKey = null;
+        string? imageUrl = null;
+
+        if (dto.Imagen is not null)
+        {
+            await using var stream = dto.Imagen.OpenReadStream();
+            imageKey = await _s3Service.UploadAsync(
+                stream,
+                Path.GetFileName(dto.Imagen.FileName),
+                dto.Imagen.ContentType,
+                $"eventos/{bandaId}");
+            imageUrl = _s3Service.GetPublicUrl(imageKey);
+        }
+
         var item = new Evento
         {
             Uuid = Guid.NewGuid(),
-            BandaId = dto.BandaId,
+            BandaId = bandaId,
             Nombre = dto.Nombre,
             Descripcion = dto.Descripcion,
             Fecha = dto.Fecha,
             Hora = dto.Hora,
             Ubicacion = dto.Ubicacion,
             UbicacionUrl = dto.UbicacionUrl,
+            ImagenUrl = imageUrl,
             Capacidad = dto.Capacidad,
             PrecioEntrada = dto.PrecioEntrada,
             Estado = dto.Estado,
@@ -64,21 +102,62 @@ public class EventosController : ControllerBase
             Timestamp = DateTime.UtcNow
         };
 
-        _context.Eventos.Add(item);
-        await _context.SaveChangesAsync();
+        try
+        {
+            _context.Eventos.Add(item);
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            if (imageKey is not null)
+            {
+                await _s3Service.DeleteAsync(imageKey);
+            }
+
+            throw;
+        }
+
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] UpdateEventoDto dto)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Update(int id, [FromForm] UpdateEventoDto dto)
     {
-        var item = await _context.Eventos.FindAsync(id);
+        if (!TryGetBandaId(out var bandaId))
+        {
+            return Unauthorized("No se encontró la banda del usuario.");
+        }
+
+        var item = await _context.Eventos.FirstOrDefaultAsync(evento =>
+            evento.Id == id &&
+            evento.BandaId == bandaId);
+
         if (item is null)
         {
             return NotFound();
         }
 
-        item.BandaId = dto.BandaId;
+        var imageError = ImageFileValidator.Validate(dto.Imagen);
+        if (imageError is not null)
+        {
+            return BadRequest(imageError);
+        }
+
+        var previousImageUrl = item.ImagenUrl;
+        string? newImageKey = null;
+
+        if (dto.Imagen is not null)
+        {
+            await using var stream = dto.Imagen.OpenReadStream();
+            newImageKey = await _s3Service.UploadAsync(
+                stream,
+                Path.GetFileName(dto.Imagen.FileName),
+                dto.Imagen.ContentType,
+                $"eventos/{bandaId}");
+            item.ImagenUrl = _s3Service.GetPublicUrl(newImageKey);
+        }
+
         item.Nombre = dto.Nombre;
         item.Descripcion = dto.Descripcion;
         item.Fecha = dto.Fecha;
@@ -90,7 +169,24 @@ public class EventosController : ControllerBase
         item.Estado = dto.Estado;
         item.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            if (newImageKey is not null)
+            {
+                await _s3Service.DeleteAsync(newImageKey);
+            }
+
+            throw;
+        }
+
+        if (newImageKey is not null && !string.IsNullOrWhiteSpace(previousImageUrl))
+        {
+            await _s3Service.DeleteByUrlAsync(previousImageUrl);
+        }
 
         return NoContent();
     }
@@ -98,16 +194,30 @@ public class EventosController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var item = await _context.Eventos.FindAsync(id);
+        if (!TryGetBandaId(out var bandaId))
+        {
+            return Unauthorized("No se encontró la banda del usuario.");
+        }
+
+        var item = await _context.Eventos.FirstOrDefaultAsync(evento =>
+            evento.Id == id &&
+            evento.BandaId == bandaId);
+
         if (item is null)
         {
             return NotFound();
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.ImagenUrl))
+        {
+            await _s3Service.DeleteByUrlAsync(item.ImagenUrl);
         }
 
         _context.Eventos.Remove(item);
         await _context.SaveChangesAsync();
         return NoContent();
     }
+    [AllowAnonymous]
     [HttpGet("public/{slug}")]
     public async Task<ActionResult<IEnumerable<EventoDto>>> GetPublicBySlug(string slug)
     {
@@ -136,6 +246,7 @@ public class EventosController : ControllerBase
                 Hora = x.Hora,
                 Ubicacion = x.Ubicacion,
                 UbicacionUrl = x.UbicacionUrl,
+                ImagenUrl = x.ImagenUrl,
                 Capacidad = x.Capacidad,
                 PrecioEntrada = x.PrecioEntrada,
                 Estado = x.Estado,
@@ -147,6 +258,7 @@ public class EventosController : ControllerBase
         return Ok(eventos);
     }
 
+    [AllowAnonymous]
     [HttpGet("public/{slug}/{id:int}")]
     public async Task<ActionResult<EventoDto>> GetPublicById(string slug, int id)
     {
@@ -177,6 +289,7 @@ public class EventosController : ControllerBase
                 Hora = x.Hora,
                 Ubicacion = x.Ubicacion,
                 UbicacionUrl = x.UbicacionUrl,
+                ImagenUrl = x.ImagenUrl,
                 Capacidad = x.Capacidad,
                 PrecioEntrada = x.PrecioEntrada,
                 Estado = x.Estado,
@@ -188,5 +301,11 @@ public class EventosController : ControllerBase
         return evento is null
             ? NotFound("Evento no encontrado.")
             : Ok(evento);
+    }
+
+    private bool TryGetBandaId(out int bandaId)
+    {
+        var bandaIdClaim = User.FindFirst("BandaId")?.Value;
+        return int.TryParse(bandaIdClaim, out bandaId) && bandaId > 0;
     }
 }

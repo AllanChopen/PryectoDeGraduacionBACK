@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Proyecto.Models;
@@ -90,6 +91,7 @@ public class BandasController : ControllerBase
         return NoContent();
     }
 
+    [AllowAnonymous]
     [HttpGet("public/{slug}")]
     public async Task<ActionResult<BandaDto>> GetPublicBySlug(string slug)
     {

@@ -32,6 +32,9 @@ public class Evento
     [Column("ubicacion_url")]
     public string? UbicacionUrl { get; set; }
 
+    [Column("imagen_url")]
+    public string? ImagenUrl { get; set; }
+
     [Column("capacidad")]
     public int? Capacidad { get; set; }
 

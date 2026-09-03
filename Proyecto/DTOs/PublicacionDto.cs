@@ -9,7 +9,6 @@ public class PublicacionDto
     public string Contenido { get; set; } = string.Empty;
     public string? ImagenUrl { get; set; }
     public DateTime FechaPublicacion { get; set; }
-    public string Estado { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
