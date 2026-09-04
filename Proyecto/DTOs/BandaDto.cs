@@ -8,5 +8,6 @@ public class BandaDto
     public string? Descripcion { get; set; }
     public string? Biografia { get; set; }
     public string? ImagenUrl { get; set; }
+    public string? BiografiaImagenUrl { get; set; }
     public string? Genero { get; set; }
 }

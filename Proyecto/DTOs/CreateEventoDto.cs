@@ -15,5 +15,5 @@ public class CreateEventoDto
     public IFormFile? Imagen { get; set; }
     public int? Capacidad { get; set; }
     public decimal? PrecioEntrada { get; set; }
-    public string Estado { get; set; } = "programado";
+    public string Estado { get; set; } = "Upcoming";
 }

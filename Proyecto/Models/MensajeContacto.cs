@@ -8,7 +8,7 @@ public class MensajeContacto
     public string Nombre { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Mensaje { get; set; } = string.Empty;
-    public string Estado { get; set; } = "nuevo";
+    public string Estado { get; set; } = "Nuevo";
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }

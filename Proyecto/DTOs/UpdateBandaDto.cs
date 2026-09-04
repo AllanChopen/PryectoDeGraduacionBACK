@@ -6,6 +6,7 @@ public class UpdateBandaDto
     public string? Descripcion { get; set; }
     public string? Biografia { get; set; }
     public string? ImagenUrl { get; set; }
+    public string? BiografiaImagenUrl { get; set; }
     public string? Genero { get; set; }
     public int UsuarioId { get; set; }
     public string Slug { get; set; } = string.Empty;

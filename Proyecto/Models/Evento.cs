@@ -42,7 +42,7 @@ public class Evento
     public decimal? PrecioEntrada { get; set; }
 
     [Column("estado")]
-    public string Estado { get; set; } = "programado";
+    public string Estado { get; set; } = "Upcoming";
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

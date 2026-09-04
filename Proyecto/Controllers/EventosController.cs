@@ -29,6 +29,8 @@ public class EventosController : ControllerBase
             return Unauthorized("No se encontró la banda del usuario.");
         }
 
+        await SyncEventStatesForBandAsync(bandaId);
+
         var eventos = await _context.Eventos
             .AsNoTracking()
             .Where(evento => evento.BandaId == bandaId)
@@ -44,6 +46,8 @@ public class EventosController : ControllerBase
         {
             return Unauthorized("No se encontró la banda del usuario.");
         }
+
+        await SyncEventStatesForBandAsync(bandaId);
 
         var item = await _context.Eventos
             .AsNoTracking()
@@ -96,7 +100,7 @@ public class EventosController : ControllerBase
             ImagenUrl = imageUrl,
             Capacidad = dto.Capacidad,
             PrecioEntrada = dto.PrecioEntrada,
-            Estado = dto.Estado,
+            Estado = GetEstadoByFecha(dto.Fecha),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             Timestamp = DateTime.UtcNow
@@ -166,7 +170,7 @@ public class EventosController : ControllerBase
         item.UbicacionUrl = dto.UbicacionUrl;
         item.Capacidad = dto.Capacidad;
         item.PrecioEntrada = dto.PrecioEntrada;
-        item.Estado = dto.Estado;
+        item.Estado = GetEstadoByFecha(dto.Fecha);
         item.UpdatedAt = DateTime.UtcNow;
 
         try
@@ -231,9 +235,11 @@ public class EventosController : ControllerBase
             return NotFound("Banda no encontrada.");
         }
 
+        await SyncEventStatesForBandAsync(bandaId);
+
         var eventos = await _context.Eventos
             .AsNoTracking()
-            .Where(x => x.BandaId == bandaId && x.Estado == "programado")
+            .Where(x => x.BandaId == bandaId && x.Estado == "Upcoming")
             .OrderBy(x => x.Fecha)
             .Select(x => new EventoDto
             {
@@ -272,12 +278,14 @@ public class EventosController : ControllerBase
             return NotFound("Banda no encontrada.");
         }
 
+        await SyncEventStatesForBandAsync(bandaId);
+
         var evento = await _context.Eventos
             .AsNoTracking()
             .Where(x =>
                 x.Id == id &&
                 x.BandaId == bandaId &&
-                x.Estado == "programado")
+                x.Estado == "Upcoming")
             .Select(x => new EventoDto
             {
                 Id = x.Id,
@@ -307,5 +315,38 @@ public class EventosController : ControllerBase
     {
         var bandaIdClaim = User.FindFirst("BandaId")?.Value;
         return int.TryParse(bandaIdClaim, out bandaId) && bandaId > 0;
+    }
+
+    private static string GetEstadoByFecha(DateTime fecha)
+    {
+        return fecha.Date >= DateTime.UtcNow.Date ? "Upcoming" : "Past";
+    }
+
+    private async Task SyncEventStatesForBandAsync(int bandaId)
+    {
+        var nowDate = DateTime.UtcNow.Date;
+
+        var eventos = await _context.Eventos
+            .Where(x => x.BandaId == bandaId)
+            .ToListAsync();
+
+        var hasChanges = false;
+
+        foreach (var evento in eventos)
+        {
+            var estadoEsperado = evento.Fecha.Date >= nowDate ? "Upcoming" : "Past";
+
+            if (!string.Equals(evento.Estado, estadoEsperado, StringComparison.Ordinal))
+            {
+                evento.Estado = estadoEsperado;
+                evento.UpdatedAt = DateTime.UtcNow;
+                hasChanges = true;
+            }
+        }
+
+        if (hasChanges)
+        {
+            await _context.SaveChangesAsync();
+        }
     }
 }

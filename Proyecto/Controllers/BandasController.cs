@@ -40,6 +40,7 @@ public class BandasController : ControllerBase
             Descripcion = dto.Descripcion,
             Biografia = dto.Biografia,
             ImagenUrl = dto.ImagenUrl,
+            BiografiaImagenUrl = dto.BiografiaImagenUrl,
             Genero = dto.Genero,
             UsuarioId = dto.UsuarioId,
             Slug = dto.Slug,
@@ -66,6 +67,7 @@ public class BandasController : ControllerBase
         item.Descripcion = dto.Descripcion;
         item.Biografia = dto.Biografia;
         item.ImagenUrl = dto.ImagenUrl;
+        item.BiografiaImagenUrl = dto.BiografiaImagenUrl;
         item.Genero = dto.Genero;
         item.UsuarioId = dto.UsuarioId;
         item.Slug = dto.Slug;
@@ -108,6 +110,7 @@ public class BandasController : ControllerBase
                     Descripcion = x.Descripcion,
                     Biografia = x.Biografia,
                     ImagenUrl = x.ImagenUrl,
+                    BiografiaImagenUrl = x.BiografiaImagenUrl,
                     Genero = x.Genero
                 })
                 .FirstOrDefaultAsync();

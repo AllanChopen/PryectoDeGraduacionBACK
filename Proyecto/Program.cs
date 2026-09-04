@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Proyecto.Filters;
+using Proyecto.Services.Email;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -68,6 +69,10 @@ builder.Services.AddSingleton<IAmazonS3>(_ =>
     ));
 
 builder.Services.AddScoped<IS3Service, S3Service>();
+
+builder.Services.Configure<MailSettings>(
+    builder.Configuration.GetSection("MailSettings"));
+builder.Services.AddScoped<IEmailService, MailtrapEmailService>();
 
 // CORS
 builder.Services.AddCors(options =>

@@ -40,4 +40,7 @@ public class Banda
 
     [Column("slug")]
     public string Slug { get; set; } = string.Empty;
+
+    [Column("biografia_imagen_url")]
+    public string? BiografiaImagenUrl { get; set; }
 }
