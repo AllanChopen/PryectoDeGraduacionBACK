@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Amazon.S3;
 using Amazon.S3.Model;
 
@@ -24,7 +25,13 @@ public class S3Service : IS3Service
     {
         var bucketName = GetRequiredConfiguration("AWS:BucketName");
 
-        var key = $"{folder}/{Guid.NewGuid()}-{fileName}";
+        var extension = Path.GetExtension(fileName);
+        var safeName = Regex.Replace(
+            Path.GetFileNameWithoutExtension(fileName),
+            @"[^a-zA-Z0-9\-_]",
+            "-");
+
+        var key = $"{folder}/{Guid.NewGuid()}-{safeName}{extension}";
 
         var request = new PutObjectRequest
         {

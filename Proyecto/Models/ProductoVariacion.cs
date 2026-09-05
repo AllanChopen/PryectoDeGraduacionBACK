@@ -17,17 +17,11 @@ public class ProductoVariacion
     [Column("nombre")]
     public string? Nombre { get; set; }
 
-    [Column("precio")]
-    public decimal? Precio { get; set; }
-
     [Column("stock")]
     public int Stock { get; set; } = 0;
 
     [Column("disponible")]
     public bool Disponible { get; set; } = true;
-
-    [Column("atributos")]
-    public string? Atributos { get; set; }
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

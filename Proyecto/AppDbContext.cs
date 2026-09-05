@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<ProductoVariacion> ProductoVariaciones => Set<ProductoVariacion>();
     public DbSet<MensajeContacto> MensajesContacto => Set<MensajeContacto>();
     public DbSet<BandaStats> BandaStats => Set<BandaStats>();
+    public DbSet<RedSocial> RedesSociales => Set<RedSocial>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

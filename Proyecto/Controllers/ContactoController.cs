@@ -26,6 +26,60 @@ public class ContactoController : ControllerBase
         _logger = logger;
     }
 
+    [Authorize(Roles = "admin")]
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<MensajeContactoDto>>> GetAll()
+    {
+        var mensajes = await _context.MensajesContacto
+            .AsNoTracking()
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new MensajeContactoDto
+            {
+                Id = x.Id,
+                Uuid = x.Uuid,
+                BandaId = x.BandaId,
+                Nombre = x.Nombre,
+                Email = x.Email,
+                Mensaje = x.Mensaje,
+                Estado = x.Estado,
+                CreatedAt = x.CreatedAt,
+                UpdatedAt = x.UpdatedAt
+            })
+            .ToListAsync();
+
+        return Ok(mensajes);
+    }
+
+    [Authorize(Roles = "bandadmin")]
+    [HttpGet("mis-mensajes")]
+    public async Task<ActionResult<IEnumerable<MensajeContactoDto>>> GetMyMessages()
+    {
+        if (!TryGetBandaId(out var bandaId))
+        {
+            return Unauthorized("No se encontró la banda del usuario.");
+        }
+
+        var mensajes = await _context.MensajesContacto
+            .AsNoTracking()
+            .Where(x => x.BandaId == bandaId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new MensajeContactoDto
+            {
+                Id = x.Id,
+                Uuid = x.Uuid,
+                BandaId = x.BandaId,
+                Nombre = x.Nombre,
+                Email = x.Email,
+                Mensaje = x.Mensaje,
+                Estado = x.Estado,
+                CreatedAt = x.CreatedAt,
+                UpdatedAt = x.UpdatedAt
+            })
+            .ToListAsync();
+
+        return Ok(mensajes);
+    }
+
     [AllowAnonymous]
     [HttpPost("public/{slug}")]
     public async Task<IActionResult> Create(string slug, [FromBody] CreateMensajeContactoDto dto)
@@ -114,5 +168,11 @@ public class ContactoController : ControllerBase
             mensajeContacto.Estado,
             notificacionEnviada
         });
+    }
+
+    private bool TryGetBandaId(out int bandaId)
+    {
+        var bandaIdClaim = User.FindFirst("BandaId")?.Value;
+        return int.TryParse(bandaIdClaim, out bandaId) && bandaId > 0;
     }
 }

@@ -26,6 +26,12 @@ public class Producto
     [Column("disponible")]
     public bool Disponible { get; set; } = true;
 
+    [Column("stock")]
+    public int? Stock { get; set; }
+
+    [Column("tiene_talla")]
+    public bool TieneTalla { get; set; } = false;
+
     [Column("imagen_url")]
     public string? ImagenUrl { get; set; }
 

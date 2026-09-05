@@ -10,5 +10,7 @@ public class UpdateProductoDto
     public string? Descripcion { get; set; }
     public decimal Precio { get; set; }
     public bool Disponible { get; set; } = true;
+    public int? Stock { get; set; }
+    public bool TieneTalla { get; set; } = false;
     public IFormFile? Imagen { get; set; }
 }

@@ -40,10 +40,8 @@ public class ProductoVariacionesController : ControllerBase
                 Uuid = variacion.Uuid,
                 ProductoId = variacion.ProductoId,
                 Nombre = variacion.Nombre,
-                Precio = variacion.Precio,
                 Stock = variacion.Stock,
                 Disponible = variacion.Disponible,
-                Atributos = variacion.Atributos,
                 CreatedAt = variacion.CreatedAt,
                 UpdatedAt = variacion.UpdatedAt
             })
@@ -74,10 +72,8 @@ public class ProductoVariacionesController : ControllerBase
                 Uuid = item.Uuid,
                 ProductoId = item.ProductoId,
                 Nombre = item.Nombre,
-                Precio = item.Precio,
                 Stock = item.Stock,
                 Disponible = item.Disponible,
-                Atributos = item.Atributos,
                 CreatedAt = item.CreatedAt,
                 UpdatedAt = item.UpdatedAt
             })
@@ -106,10 +102,8 @@ public class ProductoVariacionesController : ControllerBase
             Uuid = Guid.NewGuid(),
             ProductoId = productoId,
             Nombre = dto.Nombre,
-            Precio = dto.Precio,
             Stock = dto.Stock,
             Disponible = dto.Disponible,
-            Atributos = dto.Atributos,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             Timestamp = DateTime.UtcNow
@@ -149,10 +143,8 @@ public class ProductoVariacionesController : ControllerBase
         }
 
         variacion.Nombre = dto.Nombre;
-        variacion.Precio = dto.Precio;
         variacion.Stock = dto.Stock;
         variacion.Disponible = dto.Disponible;
-        variacion.Atributos = dto.Atributos;
         variacion.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -208,10 +200,8 @@ public class ProductoVariacionesController : ControllerBase
             Uuid = variacion.Uuid,
             ProductoId = variacion.ProductoId,
             Nombre = variacion.Nombre,
-            Precio = variacion.Precio,
             Stock = variacion.Stock,
             Disponible = variacion.Disponible,
-            Atributos = variacion.Atributos,
             CreatedAt = variacion.CreatedAt,
             UpdatedAt = variacion.UpdatedAt
         };

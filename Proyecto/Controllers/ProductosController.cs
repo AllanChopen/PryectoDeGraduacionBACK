@@ -41,6 +41,8 @@ public class ProductosController : ControllerBase
                 Descripcion = producto.Descripcion,
                 Precio = producto.Precio,
                 Disponible = producto.Disponible,
+                Stock = producto.Stock,
+                TieneTalla = producto.TieneTalla,
                 ImagenUrl = producto.ImagenUrl,
                 CreatedAt = producto.CreatedAt,
                 UpdatedAt = producto.UpdatedAt,
@@ -53,10 +55,8 @@ public class ProductosController : ControllerBase
                         Uuid = variacion.Uuid,
                         ProductoId = variacion.ProductoId,
                         Nombre = variacion.Nombre,
-                        Precio = variacion.Precio,
                         Stock = variacion.Stock,
                         Disponible = variacion.Disponible,
-                        Atributos = variacion.Atributos,
                         CreatedAt = variacion.CreatedAt,
                         UpdatedAt = variacion.UpdatedAt
                     })
@@ -87,6 +87,8 @@ public class ProductosController : ControllerBase
                 Descripcion = item.Descripcion,
                 Precio = item.Precio,
                 Disponible = item.Disponible,
+                Stock = item.Stock,
+                TieneTalla = item.TieneTalla,
                 ImagenUrl = item.ImagenUrl,
                 CreatedAt = item.CreatedAt,
                 UpdatedAt = item.UpdatedAt,
@@ -99,10 +101,8 @@ public class ProductosController : ControllerBase
                         Uuid = variacion.Uuid,
                         ProductoId = variacion.ProductoId,
                         Nombre = variacion.Nombre,
-                        Precio = variacion.Precio,
                         Stock = variacion.Stock,
                         Disponible = variacion.Disponible,
-                        Atributos = variacion.Atributos,
                         CreatedAt = variacion.CreatedAt,
                         UpdatedAt = variacion.UpdatedAt
                     })
@@ -120,6 +120,11 @@ public class ProductosController : ControllerBase
         if (!TryGetBandaId(out var bandaId))
         {
             return Unauthorized("No se encontró la banda del usuario.");
+        }
+
+        if (!dto.TieneTalla && (dto.Stock is null || dto.Stock < 0))
+        {
+            return BadRequest("El producto debe tener stock.");
         }
 
         var imageError = ImageFileValidator.Validate(dto.Imagen);
@@ -150,6 +155,8 @@ public class ProductosController : ControllerBase
             Descripcion = dto.Descripcion,
             Precio = dto.Precio,
             Disponible = dto.Disponible,
+            Stock = dto.TieneTalla ? null : dto.Stock,
+            TieneTalla = dto.TieneTalla,
             ImagenUrl = imageUrl,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
@@ -192,6 +199,11 @@ public class ProductosController : ControllerBase
             return NotFound("Producto no encontrado.");
         }
 
+        if (!dto.TieneTalla && (dto.Stock is null || dto.Stock < 0))
+        {
+            return BadRequest("El producto debe tener stock.");
+        }
+
         var imageError = ImageFileValidator.Validate(dto.Imagen);
         if (imageError is not null)
         {
@@ -216,6 +228,8 @@ public class ProductosController : ControllerBase
         producto.Descripcion = dto.Descripcion;
         producto.Precio = dto.Precio;
         producto.Disponible = dto.Disponible;
+        producto.Stock = dto.TieneTalla ? null : dto.Stock;
+        producto.TieneTalla = dto.TieneTalla;
         producto.UpdatedAt = DateTime.UtcNow;
 
         try
@@ -297,6 +311,8 @@ public class ProductosController : ControllerBase
                 Descripcion = producto.Descripcion,
                 Precio = producto.Precio,
                 Disponible = producto.Disponible,
+                Stock = producto.Stock,
+                TieneTalla = producto.TieneTalla,
                 ImagenUrl = producto.ImagenUrl,
                 Variaciones = _context.ProductoVariaciones
                     .Where(variacion =>
@@ -309,10 +325,8 @@ public class ProductosController : ControllerBase
                         Uuid = variacion.Uuid,
                         ProductoId = variacion.ProductoId,
                         Nombre = variacion.Nombre,
-                        Precio = variacion.Precio,
                         Stock = variacion.Stock,
                         Disponible = variacion.Disponible,
-                        Atributos = variacion.Atributos,
                         CreatedAt = variacion.CreatedAt,
                         UpdatedAt = variacion.UpdatedAt
                     })
@@ -350,6 +364,8 @@ public class ProductosController : ControllerBase
                 Descripcion = item.Descripcion,
                 Precio = item.Precio,
                 Disponible = item.Disponible,
+                Stock = item.Stock,
+                TieneTalla = item.TieneTalla,
                 ImagenUrl = item.ImagenUrl,
                 Variaciones = _context.ProductoVariaciones
                     .Where(variacion =>
@@ -362,10 +378,8 @@ public class ProductosController : ControllerBase
                         Uuid = variacion.Uuid,
                         ProductoId = variacion.ProductoId,
                         Nombre = variacion.Nombre,
-                        Precio = variacion.Precio,
                         Stock = variacion.Stock,
                         Disponible = variacion.Disponible,
-                        Atributos = variacion.Atributos,
                         CreatedAt = variacion.CreatedAt,
                         UpdatedAt = variacion.UpdatedAt
                     })

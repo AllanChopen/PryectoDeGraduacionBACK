@@ -1,0 +1,10 @@
+namespace Proyecto.DTOs;
+
+public class RedSocialDto
+{
+    public int Id { get; set; }
+    public Guid Uuid { get; set; }
+    public string Tipo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+}
