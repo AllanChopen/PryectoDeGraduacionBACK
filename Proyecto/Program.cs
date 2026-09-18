@@ -7,7 +7,9 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Proyecto.Filters;
 using Proyecto.Services.Email;
+using Proyecto.Services.Recurrente;
 using System.Text;
+using Proyecto.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 var awsRegion = builder.Configuration["AWS:Region"];
@@ -38,6 +40,22 @@ builder.Services.AddSwaggerGen(options =>
 
     options.DocumentFilter<PublicEndpointsDocumentFilter>();
 });
+
+//Recurrente
+builder.Services.Configure<RecurrenteSettings>(
+    builder.Configuration.GetSection("Recurrente"));
+
+builder.Services.AddHttpClient("Recurrente", (serviceProvider, client) =>
+{
+    var settings = serviceProvider
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<RecurrenteSettings>>()
+        .Value;
+
+    client.BaseAddress = new Uri(settings.BaseUrl);
+    client.DefaultRequestHeaders.Add("X-SECRET-KEY", settings.SecretKey);
+});
+
+builder.Services.AddScoped<IRecurrenteService, RecurrenteService>();
 
 //JWT
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

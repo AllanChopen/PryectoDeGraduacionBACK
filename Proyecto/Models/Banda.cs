@@ -43,4 +43,14 @@ public class Banda
 
     [Column("biografia_imagen_url")]
     public string? BiografiaImagenUrl { get; set; }
+
+    // Recurrente
+    [Column("recurrente_account_id")]
+    public string? RecurrenteAccountId { get; set; }
+
+    [Column("recurrente_account_status")]
+    public string? RecurrenteAccountStatus { get; set; }
+
+    [Column("recurrente_onboarding_completed")]
+    public bool RecurrenteOnboardingCompleted { get; set; } = false;
 }
