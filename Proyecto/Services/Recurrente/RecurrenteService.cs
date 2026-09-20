@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 
 namespace Proyecto.Services.Recurrente;
@@ -5,10 +6,12 @@ namespace Proyecto.Services.Recurrente;
 public class RecurrenteService : IRecurrenteService
 {
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AppDbContext _context;
 
-    public RecurrenteService(IHttpClientFactory httpClientFactory)
+    public RecurrenteService(IHttpClientFactory httpClientFactory, AppDbContext context)
     {
         _httpClientFactory = httpClientFactory;
+        _context = context;
     }
 
     public async Task<string> TestConnectionAsync()
@@ -28,6 +31,7 @@ public class RecurrenteService : IRecurrenteService
     }
 
     public async Task<string> CreateConnectedAccountAsync(
+        int bandaId,
         string email,
         string fullName,
         string phoneNumber,
@@ -36,6 +40,12 @@ public class RecurrenteService : IRecurrenteService
         IFormFile idCardImage,
         IFormFile idCardImageBack)
     {
+        var banda = await _context.Bandas.FindAsync(bandaId);
+        if (banda is null)
+        {
+            throw new KeyNotFoundException($"No se encontró la banda con id {bandaId}.");
+        }
+
         var client = _httpClientFactory.CreateClient("Recurrente");
 
         using var form = new MultipartFormDataContent();
@@ -48,19 +58,19 @@ public class RecurrenteService : IRecurrenteService
         form.Add(new StringContent("daily"), "withdrawals_schedule");
 
         form.Add(
-            CreateFileContent(taxRegistrationDocument),
+            await CreateFileContentAsync(taxRegistrationDocument),
             "verification[tax_registration_document]",
             taxRegistrationDocument.FileName
         );
 
         form.Add(
-            CreateFileContent(idCardImage),
+            await CreateFileContentAsync(idCardImage),
             "verification[id_card_image]",
             idCardImage.FileName
         );
 
         form.Add(
-            CreateFileContent(idCardImageBack),
+            await CreateFileContentAsync(idCardImageBack),
             "verification[id_card_image_back]",
             idCardImageBack.FileName
         );
@@ -75,12 +85,38 @@ public class RecurrenteService : IRecurrenteService
             );
         }
 
+        var recurrenteAccountId = ExtractConnectedAccountId(content);
+        banda.RecurrenteAccountId = recurrenteAccountId;
+        banda.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
         return content;
     }
 
-    private static StreamContent CreateFileContent(IFormFile file)
+    private static string ExtractConnectedAccountId(string content)
     {
-        var content = new StreamContent(file.OpenReadStream());
+        using var document = JsonDocument.Parse(content);
+
+        if (document.RootElement.TryGetProperty("id", out var idElement))
+        {
+            var accountId = idElement.GetString();
+            if (!string.IsNullOrWhiteSpace(accountId))
+            {
+                return accountId;
+            }
+        }
+
+        throw new Exception("La respuesta de Recurrente no contiene un id de cuenta válido.");
+    }
+
+    private static async Task<ByteArrayContent> CreateFileContentAsync(IFormFile file)
+    {
+        await using var stream = file.OpenReadStream();
+        using var memoryStream = new MemoryStream();
+        await stream.CopyToAsync(memoryStream);
+
+        var content = new ByteArrayContent(memoryStream.ToArray());
 
         if (!string.IsNullOrWhiteSpace(file.ContentType))
         {

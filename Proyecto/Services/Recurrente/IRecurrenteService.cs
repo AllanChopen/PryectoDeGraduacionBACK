@@ -7,6 +7,7 @@ public interface IRecurrenteService
     Task<string> TestConnectionAsync();
 
     Task<string> CreateConnectedAccountAsync(
+        int bandaId,
         string email,
         string fullName,
         string phoneNumber,

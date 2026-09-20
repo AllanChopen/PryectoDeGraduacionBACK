@@ -38,14 +38,18 @@ public class RecurrenteController : ControllerBase
         }
     }
 
-    [HttpPost("connected-account")]
+    [HttpPost("connected-account/{bandaId:int}")]
     [Consumes("multipart/form-data")]
+    [RequestFormLimits(MultipartBodyLengthLimit = 52_428_800)]
+    [RequestSizeLimit(52_428_800)]
     public async Task<IActionResult> CreateConnectedAccount(
+        int bandaId,
         [FromForm] CreateConnectedAccountRequest request)
     {
         try
         {
             var response = await _recurrenteService.CreateConnectedAccountAsync(
+                bandaId,
                 request.Email,
                 request.FullName,
                 request.PhoneNumber,
@@ -59,6 +63,14 @@ public class RecurrenteController : ControllerBase
             {
                 success = true,
                 recurrenteResponse = response
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new
+            {
+                success = false,
+                error = ex.Message
             });
         }
         catch (Exception ex)

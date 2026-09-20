@@ -3,6 +3,7 @@ using Amazon;
 using Amazon.S3;
 using PryectoDeGraduacionBACK.Services.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Proyecto.Filters;
@@ -15,6 +16,24 @@ var builder = WebApplication.CreateBuilder(args);
 var awsRegion = builder.Configuration["AWS:Region"];
 var awsAccessKey = builder.Configuration["AWS:AccessKey"];
 var awsSecretKey = builder.Configuration["AWS:SecretKey"];
+
+const long maxUploadSize = 50 * 1024 * 1024;
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = maxUploadSize;
+    options.MultipartHeadersLengthLimit = 32 * 1024;
+});
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = maxUploadSize;
+});
+
+builder.Services.Configure<IISServerOptions>(options =>
+{
+    options.MaxRequestBodySize = maxUploadSize;
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
