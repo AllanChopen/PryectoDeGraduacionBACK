@@ -17,6 +17,18 @@ public class OrdenDetalle
     [Column("producto_id")]
     public int ProductoId { get; set; }
 
+    [Column("producto_variacion_id")]
+    public int? ProductoVariacionId { get; set; }
+
+    [Column("producto_nombre")]
+    public string? ProductoNombre { get; set; }
+
+    [Column("variacion_nombre")]
+    public string? VariacionNombre { get; set; }
+
+    [Column("imagen_url")]
+    public string? ImagenUrl { get; set; }
+
     [Column("cantidad")]
     public int Cantidad { get; set; }
 

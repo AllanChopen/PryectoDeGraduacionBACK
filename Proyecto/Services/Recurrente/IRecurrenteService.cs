@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using Proyecto.Models.Recurrente;
+using Proyecto.Services.Checkout;
 
 namespace Proyecto.Services.Recurrente;
 
@@ -16,4 +18,11 @@ public interface IRecurrenteService
         IFormFile idCardImage,
         IFormFile idCardImageBack
     );
+
+    Task<RecurrenteCheckoutResponse> CreateCheckoutAsync(
+        CheckoutCalculation calculation,
+        DateTime? expiresAt = null);
+
+    Task<RecurrenteCheckoutResponse> GetCheckoutAsync(
+        string checkoutId);
 }

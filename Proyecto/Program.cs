@@ -11,6 +11,8 @@ using Proyecto.Services.Email;
 using Proyecto.Services.Recurrente;
 using System.Text;
 using Proyecto.Models;
+using Proyecto.Services.Checkout;
+using Proyecto.Services.Stock;
 
 var builder = WebApplication.CreateBuilder(args);
 var awsRegion = builder.Configuration["AWS:Region"];
@@ -18,6 +20,10 @@ var awsAccessKey = builder.Configuration["AWS:AccessKey"];
 var awsSecretKey = builder.Configuration["AWS:SecretKey"];
 
 const long maxUploadSize = 50 * 1024 * 1024;
+
+builder.Services.AddScoped<CheckoutCalculatorService>();
+builder.Services.AddScoped<StockReservationService>();
+builder.Services.AddHostedService<StockReservationWorker>();
 
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -110,6 +116,7 @@ builder.Services.AddScoped<IS3Service, S3Service>();
 builder.Services.Configure<MailSettings>(
     builder.Configuration.GetSection("MailSettings"));
 builder.Services.AddScoped<IEmailService, MailtrapEmailService>();
+builder.Services.AddScoped<IOrderEmailService, OrderEmailService>();
 
 // CORS
 builder.Services.AddCors(options =>

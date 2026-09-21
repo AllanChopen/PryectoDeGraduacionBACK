@@ -53,4 +53,7 @@ public class Banda
 
     [Column("recurrente_onboarding_completed")]
     public bool RecurrenteOnboardingCompleted { get; set; } = false;
+    
+    [Column("precio_envio")]
+    public decimal? PrecioEnvio { get; set; }
 }

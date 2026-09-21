@@ -1,5 +1,8 @@
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Proyecto.Models.Recurrente;
+using Proyecto.Services.Checkout;
 
 namespace Proyecto.Services.Recurrente;
 
@@ -92,6 +95,92 @@ public class RecurrenteService : IRecurrenteService
         await _context.SaveChangesAsync();
 
         return content;
+    }
+
+    public async Task<RecurrenteCheckoutResponse> CreateCheckoutAsync(
+        CheckoutCalculation calculation,
+        DateTime? expiresAt = null)
+    {
+        var client = _httpClientFactory.CreateClient("Recurrente");
+
+        var totalInCents = (int)Math.Round(
+            calculation.Total * 100,
+            MidpointRounding.AwayFromZero
+        );
+
+        var payload = new
+        {
+            items = new[]
+            {
+                new
+                {
+                    name = $"Compra Banda #{calculation.BandaId}",
+                    amount_in_cents = totalInCents,
+                    currency = "GTQ",
+                    quantity = 1
+                }
+            },
+
+            expires_at = expiresAt?.ToString("O")
+        };
+
+        var response = await client.PostAsJsonAsync(
+            "checkouts",
+            payload
+        );
+
+        var content = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new Exception(
+                $"Recurrente respondió con {(int)response.StatusCode}: {content}"
+            );
+        }
+
+        var checkout =
+            JsonSerializer.Deserialize<RecurrenteCheckoutResponse>(
+                content
+            );
+
+        if (checkout == null)
+        {
+            throw new Exception(
+                "No se pudo interpretar la respuesta de Recurrente."
+            );
+        }
+
+        return checkout;
+    }
+
+    public async Task<RecurrenteCheckoutResponse> GetCheckoutAsync(
+        string checkoutId)
+    {
+        var client = _httpClientFactory.CreateClient("Recurrente");
+
+        var response = await client.GetAsync(
+            $"checkouts/{checkoutId}");
+
+        var content =
+            await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new Exception(
+                $"Error consultando checkout {checkoutId}: {content}");
+        }
+
+        var checkout =
+            JsonSerializer.Deserialize<RecurrenteCheckoutResponse>(
+                content);
+
+        if (checkout == null)
+        {
+            throw new Exception(
+                "No se pudo interpretar el checkout de Recurrente.");
+        }
+
+        return checkout;
     }
 
     private static string ExtractConnectedAccountId(string content)

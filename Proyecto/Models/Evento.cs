@@ -37,6 +37,9 @@ public class Evento
 
     [Column("capacidad")]
     public int? Capacidad { get; set; }
+    
+    [Column("entradas_disponibles")]
+    public int? EntradasDisponibles { get; set; }
 
     [Column("precio_entrada")]
     public decimal? PrecioEntrada { get; set; }
