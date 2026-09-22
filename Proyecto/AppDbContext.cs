@@ -93,5 +93,11 @@ public class AppDbContext : DbContext
             entity.Property(e => e.TotalMensajes)
                 .HasColumnName("total_mensajes");
         });
+
+        // EventoFecha is a historical calendar date paired with EventoHora;
+        // it does not represent an instant in UTC.
+        modelBuilder.Entity<Orden>()
+            .Property(e => e.EventoFecha)
+            .HasColumnType("timestamp without time zone");
     }
 }

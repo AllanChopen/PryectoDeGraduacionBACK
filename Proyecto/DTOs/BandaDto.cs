@@ -10,4 +10,5 @@ public class BandaDto
     public string? ImagenUrl { get; set; }
     public string? BiografiaImagenUrl { get; set; }
     public string? Genero { get; set; }
+    public decimal? PrecioEnvio { get; set; }
 }

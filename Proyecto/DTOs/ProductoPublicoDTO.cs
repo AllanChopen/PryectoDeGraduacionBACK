@@ -2,6 +2,7 @@ namespace Proyecto.DTOs;
 
 public class ProductoPublicDto
 {
+    public int Id { get; set; }
     public Guid Uuid { get; set; }
     public string Nombre { get; set; } = string.Empty;
     public string? Descripcion { get; set; }

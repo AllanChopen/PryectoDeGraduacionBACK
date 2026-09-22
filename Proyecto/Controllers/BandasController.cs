@@ -253,7 +253,8 @@ public class BandasController : ControllerBase
                     Biografia = x.Biografia,
                     ImagenUrl = x.ImagenUrl,
                     BiografiaImagenUrl = x.BiografiaImagenUrl,
-                    Genero = x.Genero
+                    Genero = x.Genero,
+                    PrecioEnvio = x.PrecioEnvio
                 })
                 .FirstOrDefaultAsync();
 

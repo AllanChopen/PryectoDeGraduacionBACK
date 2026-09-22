@@ -21,19 +21,22 @@ public class RecurrenteController : ControllerBase
     private readonly RecurrenteSettings _recurrenteSettings;
     private readonly AppDbContext _context;
     private readonly IOrderEmailService _orderEmailService;
+    private readonly IConfiguration _configuration;
 
     public RecurrenteController(
         IRecurrenteService recurrenteService,
         CheckoutCalculatorService checkoutCalculator,
         IOptions<RecurrenteSettings> recurrenteSettings,
         AppDbContext context,
-        IOrderEmailService orderEmailService)
+        IOrderEmailService orderEmailService,
+        IConfiguration configuration)
     {
         _recurrenteService = recurrenteService;
         _checkoutCalculator = checkoutCalculator;
         _recurrenteSettings = recurrenteSettings.Value;
         _context = context;
         _orderEmailService = orderEmailService;
+        _configuration = configuration;
     }
 
     [HttpGet("test")]
@@ -231,10 +234,26 @@ public class RecurrenteController : ControllerBase
             await _context.SaveChangesAsync();
 
             // 4. Crear checkout en Recurrente
+            var banda = await _context.Bandas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.Id == calculation.BandaId);
+            if (banda is null)
+            {
+                throw new KeyNotFoundException("No se encontró la banda de la orden.");
+            }
+
+            var frontendBaseUrl = _configuration["Frontend:BaseUrl"]?.TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(frontendBaseUrl))
+            {
+                throw new InvalidOperationException("No está configurada Frontend:BaseUrl.");
+            }
+
             var recurrenteResponse =
                 await _recurrenteService.CreateCheckoutAsync(
                     calculation,
-                    reservaExpiraAt);
+                    reservaExpiraAt,
+                    $"{frontendBaseUrl}/{banda.Slug}/checkout/productos/exito",
+                    $"{frontendBaseUrl}/{banda.Slug}/carrito");
 
             // 5. Asociar checkout de Recurrente con nuestra orden
             orden.RecurrenteCheckoutId = recurrenteResponse.Id;
@@ -303,6 +322,29 @@ public class RecurrenteController : ControllerBase
                     $"No se encontró el evento {request.EventoId}.");
             }
 
+            var banda = await _context.Bandas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.Id == evento.BandaId);
+
+            if (banda == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = "No se encontró la banda del evento."
+                });
+            }
+
+            var frontendBaseUrl = _configuration["Frontend:BaseUrl"]?.TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(frontendBaseUrl))
+            {
+                throw new InvalidOperationException(
+                    "No está configurada la URL base del frontend (Frontend:BaseUrl).");
+            }
+
+            var successUrl = $"{frontendBaseUrl}/{banda.Slug}/checkout/evento/exito";
+            var cancelUrl = $"{frontendBaseUrl}/{banda.Slug}/shows/{evento.Id}";
+
             if (!evento.EntradasDisponibles.HasValue)
             {
                 throw new InvalidOperationException(
@@ -360,7 +402,9 @@ public class RecurrenteController : ControllerBase
             var recurrenteResponse =
                 await _recurrenteService.CreateCheckoutAsync(
                     calculation,
-                    reservaExpiraAt);
+                    reservaExpiraAt,
+                    successUrl,
+                    cancelUrl);
 
             orden.RecurrenteCheckoutId = recurrenteResponse.Id;
             orden.UpdatedAt = DateTime.UtcNow;
@@ -618,8 +662,15 @@ public class RecurrenteController : ControllerBase
         }
         else
         {
-            // Compra de evento: los tickets ya se crearon arriba.
-            // Después: await _orderEmailService.SendEventTicketsToCustomerAsync(orden.Id);
+            try
+            {
+                await _orderEmailService.SendEventTicketsToCustomerAsync(orden.Id);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"Error enviando tickets de la orden #{orden.Id}: {ex.Message}");
+            }
         }
 
         return Ok(new

@@ -99,7 +99,9 @@ public class RecurrenteService : IRecurrenteService
 
     public async Task<RecurrenteCheckoutResponse> CreateCheckoutAsync(
         CheckoutCalculation calculation,
-        DateTime? expiresAt = null)
+        DateTime? expiresAt = null,
+        string? successUrl = null,
+        string? cancelUrl = null)
     {
         var client = _httpClientFactory.CreateClient("Recurrente");
 
@@ -121,8 +123,13 @@ public class RecurrenteService : IRecurrenteService
                 }
             },
 
-            expires_at = expiresAt?.ToString("O")
+            expires_at = expiresAt?.ToString("O"),
+            success_url = successUrl,
+            cancel_url = cancelUrl
         };
+
+        Console.WriteLine(
+            $"Recurrente checkout payload: {JsonSerializer.Serialize(payload)}");
 
         var response = await client.PostAsJsonAsync(
             "checkouts",

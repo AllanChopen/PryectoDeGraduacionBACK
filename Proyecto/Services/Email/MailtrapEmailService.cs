@@ -15,6 +15,13 @@ public class MailtrapEmailService : IEmailService
     }
 
     public async Task SendAsync(string to, string subject, string htmlBody)
+        => await SendAsync(to, subject, htmlBody, Array.Empty<EmailInlineImage>());
+
+    public async Task SendAsync(
+        string to,
+        string subject,
+        string htmlBody,
+        IEnumerable<EmailInlineImage> inlineImages)
     {
         ValidateSettings();
 
@@ -22,10 +29,17 @@ public class MailtrapEmailService : IEmailService
         email.From.Add(new MailboxAddress(_settings.FromName, _settings.FromEmail));
         email.To.Add(MailboxAddress.Parse(to));
         email.Subject = subject;
-        email.Body = new BodyBuilder
+        var builder = new BodyBuilder { HtmlBody = htmlBody };
+        foreach (var image in inlineImages)
         {
-            HtmlBody = htmlBody
-        }.ToMessageBody();
+            var resource = builder.LinkedResources.Add(
+                "inline-image.png",
+                image.Content,
+                ContentType.Parse(image.ContentType));
+            resource.ContentId = image.ContentId;
+            resource.ContentDisposition = new ContentDisposition(ContentDisposition.Inline);
+        }
+        email.Body = builder.ToMessageBody();
 
         using var smtp = new SmtpClient();
         await smtp.ConnectAsync(_settings.Host, _settings.Port, SecureSocketOptions.StartTls);

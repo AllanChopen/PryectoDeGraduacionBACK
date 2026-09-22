@@ -29,6 +29,69 @@ public class OrdenesController : ControllerBase
         return item is null ? NotFound() : Ok(item);
     }
 
+    [HttpGet("checkout/{checkoutId}")]
+    public async Task<IActionResult> GetByCheckout(string checkoutId)
+    {
+        var orden = await _context.Ordenes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.RecurrenteCheckoutId == checkoutId);
+
+        if (orden is null)
+        {
+            return NotFound(new
+            {
+                success = false,
+                message = "Orden no encontrada."
+            });
+        }
+
+        if (orden.EventoId.HasValue)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = "Este checkout corresponde a una compra de evento."
+            });
+        }
+
+        var detalles = await _context.OrdenesDetalle
+            .AsNoTracking()
+            .Where(d => d.OrdenId == orden.Id)
+            .OrderBy(d => d.Id)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            success = true,
+            estadoPago = orden.EstadoPago,
+            orden = new
+            {
+                orden.Id,
+                orden.Uuid,
+                orden.CompradorNombre,
+                orden.CompradorEmail,
+                orden.CompradorTelefono,
+                orden.DireccionEnvio,
+                orden.Subtotal,
+                orden.CostoEnvio,
+                orden.TarifaServicio,
+                orden.Total,
+                orden.Estado,
+                orden.EstadoPago
+            },
+            productos = detalles.Select(d => new
+            {
+                d.Uuid,
+                d.ProductoNombre,
+                d.VariacionNombre,
+                d.ImagenUrl,
+                d.Cantidad,
+                d.PrecioUnitario,
+                d.Subtotal
+            })
+        });
+    }
+
     [HttpPost]
     public async Task<ActionResult<Orden>> Create([FromBody] CreateOrdenDto dto)
     {

@@ -13,6 +13,7 @@ public class EventoDto
     public string? UbicacionUrl { get; set; }
     public string? ImagenUrl { get; set; }
     public int? Capacidad { get; set; }
+    public int? EntradasDisponibles { get; set; }
     public decimal? PrecioEntrada { get; set; }
     public string Estado { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }

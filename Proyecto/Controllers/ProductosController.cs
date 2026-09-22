@@ -306,6 +306,7 @@ public class ProductosController : ControllerBase
             .Where(producto => producto.BandaId == bandaId && producto.Disponible)
             .Select(producto => new ProductoPublicDto
             {
+                Id = producto.Id,
                 Uuid = producto.Uuid,
                 Nombre = producto.Nombre,
                 Descripcion = producto.Descripcion,
@@ -359,6 +360,7 @@ public class ProductosController : ControllerBase
                 item.Disponible)
             .Select(item => new ProductoPublicDto
             {
+                Id = item.Id,
                 Uuid = item.Uuid,
                 Nombre = item.Nombre,
                 Descripcion = item.Descripcion,

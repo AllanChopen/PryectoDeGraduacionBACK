@@ -21,7 +21,9 @@ public interface IRecurrenteService
 
     Task<RecurrenteCheckoutResponse> CreateCheckoutAsync(
         CheckoutCalculation calculation,
-        DateTime? expiresAt = null);
+        DateTime? expiresAt = null,
+        string? successUrl = null,
+        string? cancelUrl = null);
 
     Task<RecurrenteCheckoutResponse> GetCheckoutAsync(
         string checkoutId);
