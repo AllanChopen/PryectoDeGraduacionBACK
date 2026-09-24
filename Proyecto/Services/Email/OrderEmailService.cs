@@ -117,8 +117,7 @@ public class OrderEmailService : IOrderEmailService
                   <div style="width:86px;height:3px;border-radius:4px;background:linear-gradient(115deg,#5a4252,#0e213a 58%,#a79494);margin:0 0 18px 0;"></div>
 
                   <p style="margin:0 0 14px 0;color:#e9e4e6;font-size:15px;">
-                      Se ha confirmado una nueva compra de productos de
-                      <strong>{WebUtility.HtmlEncode(banda.Nombre)}</strong>.
+                      Se ha confirmado una nueva compra de productos.
                   </p>
 
                   <p style="margin:18px 0 10px 0;color:#a79494;font-size:12px;letter-spacing:.08em;text-transform:uppercase;">Comprador</p>
@@ -194,6 +193,66 @@ public class OrderEmailService : IOrderEmailService
             orden.CompradorEmail,
             "Compra confirmada",
             html);
+    }
+
+    public async Task SendProductOrderShippedToCustomerAsync(int ordenId)
+    {
+        var orden = await _context.Ordenes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == ordenId);
+
+        if (orden is null)
+            throw new KeyNotFoundException($"No se encontró la orden {ordenId}.");
+        if (orden.EventoId.HasValue)
+            throw new InvalidOperationException("La orden corresponde a un evento.");
+        if (orden.EstadoPago != "pagado" || orden.Estado != "enviada")
+            throw new InvalidOperationException("La orden no está pagada y marcada como enviada.");
+        if (string.IsNullOrWhiteSpace(orden.CompradorEmail))
+            throw new InvalidOperationException("La orden no tiene un correo de comprador configurado.");
+
+        var detalles = await _context.OrdenesDetalle
+            .AsNoTracking()
+            .Where(d => d.OrdenId == orden.Id)
+            .OrderBy(d => d.Id)
+            .ToListAsync();
+
+        if (detalles.Count == 0)
+            throw new InvalidOperationException("La orden no contiene productos.");
+
+        var html = BuildProductOrderShippedEmail(orden, detalles);
+        await _emailService.SendAsync(
+            orden.CompradorEmail,
+            "Tu pedido ha sido enviado",
+            html);
+    }
+
+    private static string BuildProductOrderShippedEmail(
+        Orden orden,
+        List<OrdenDetalle> detalles)
+    {
+        var items = BuildProductItemsHtml(detalles);
+
+        return $"""
+            <!doctype html>
+            <html lang="es">
+              <body style="margin:0;padding:24px 12px;background:#0d0107;background-image:linear-gradient(140deg,#0d0107,#100418 55%,#0e213a);font-family:Inter,system-ui,sans-serif;color:#e9e4e6;">
+                <div style="max-width:640px;margin:0 auto;background:#141018;border:1px solid rgba(167,148,148,.22);border-radius:12px;padding:22px;">
+                  <p style="margin:0 0 8px 0;color:#a79494;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">Pedido enviado</p>
+                  <h1 style="margin:0 0 14px 0;font-size:26px;line-height:1.2;font-weight:600;color:#e9e4e6;">¡Tu pedido va en camino!</h1>
+                  <div style="width:86px;height:3px;border-radius:4px;background:linear-gradient(115deg,#5a4252,#0e213a 58%,#a79494);margin:0 0 18px 0;"></div>
+                  <p style="margin:0 0 14px 0;color:#e9e4e6;font-size:15px;">
+                    Hola {WebUtility.HtmlEncode(orden.CompradorNombre)}, tu pedido fue enviado.
+                  </p>
+                  <p style="margin:18px 0 10px 0;color:#a79494;font-size:12px;letter-spacing:.08em;text-transform:uppercase;">Dirección de envío</p>
+                  <div style="margin-bottom:14px;padding:14px;border-radius:10px;border:1px solid rgba(167,148,148,.2);background:#1d1721;line-height:1.6;color:#e9e4e6;font-size:15px;">
+                    {WebUtility.HtmlEncode(orden.DireccionEnvio)}
+                  </div>
+                  <p style="margin:18px 0 10px 0;color:#a79494;font-size:12px;letter-spacing:.08em;text-transform:uppercase;">Productos</p>
+                  {items}
+                </div>
+              </body>
+            </html>
+            """;
     }
 
     public async Task SendEventTicketsToCustomerAsync(int ordenId)
@@ -318,7 +377,7 @@ public class OrderEmailService : IOrderEmailService
             if (!string.IsNullOrWhiteSpace(variacionNombre))
             {
                 items.Append($"""
-                    Variación: {variacionNombre}<br>
+                    Talla: {variacionNombre}<br>
                     """);
             }
 

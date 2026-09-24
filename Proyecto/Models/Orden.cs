@@ -14,6 +14,9 @@ public class Orden
     [Column("usuario_id")]
     public int? UsuarioId { get; set; }
 
+    [Column("banda_id")]
+    public int? BandaId { get; set; }
+
     [Column("estado")]
     public string Estado { get; set; } = "nueva";
 

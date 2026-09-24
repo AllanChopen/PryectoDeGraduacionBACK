@@ -6,5 +6,7 @@ public interface IOrderEmailService
 
     Task SendProductOrderConfirmationToCustomerAsync(int ordenId);
 
+    Task SendProductOrderShippedToCustomerAsync(int ordenId);
+
     Task SendEventTicketsToCustomerAsync(int ordenId);
 }

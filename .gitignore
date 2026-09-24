@@ -8,4 +8,4 @@ obj/
 *.sln.docstates
 
 appsettings.json
-appsettings.Development.json
+appsettings.Development.json.ai/

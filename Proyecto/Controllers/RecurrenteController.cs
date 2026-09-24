@@ -126,6 +126,7 @@ public class RecurrenteController : ControllerBase
 
                 // Compra anónima
                 UsuarioId = null,
+                BandaId = calculation.BandaId,
 
                 // Datos del comprador
                 CompradorNombre = request.Nombre,
@@ -369,6 +370,7 @@ public class RecurrenteController : ControllerBase
                 CompradorEmail = request.Email,
                 CompradorTelefono = request.Telefono,
 
+                BandaId = evento.BandaId,
                 EventoId = evento.Id,
                 CantidadEntradas = request.Cantidad,
 

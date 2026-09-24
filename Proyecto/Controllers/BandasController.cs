@@ -20,6 +20,53 @@ public class BandasController : ControllerBase
         _s3Service = s3Service;
     }
 
+    [Authorize(Roles = "bandadmin")]
+    [HttpPut("mi-banda/precio-envio")]
+    public async Task<IActionResult> UpdatePrecioEnvio(
+        [FromBody] UpdatePrecioEnvioRequest request)
+    {
+        var bandaIdClaim = User.FindFirst("BandaId")?.Value;
+        if (!int.TryParse(bandaIdClaim, out var bandaId) || bandaId <= 0)
+        {
+            return Unauthorized(new
+            {
+                success = false,
+                message = "No se pudo identificar la banda."
+            });
+        }
+
+        if (request.PrecioEnvio < 0)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = "El precio de envío no puede ser negativo."
+            });
+        }
+
+        var banda = await _context.Bandas
+            .FirstOrDefaultAsync(b => b.Id == bandaId);
+        if (banda is null)
+        {
+            return NotFound(new
+            {
+                success = false,
+                message = "Banda no encontrada."
+            });
+        }
+
+        banda.PrecioEnvio = request.PrecioEnvio;
+        banda.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            success = true,
+            precioEnvio = banda.PrecioEnvio
+        });
+    }
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Banda>>> GetAll()
     {
