@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Proyecto.Models.Recurrente;
 using Proyecto.Services.Checkout;
 
@@ -105,6 +106,16 @@ public class RecurrenteService : IRecurrenteService
     {
         var client = _httpClientFactory.CreateClient("Recurrente");
 
+        var banda = await _context.Bandas
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == calculation.BandaId);
+
+        if (banda is null)
+        {
+            throw new KeyNotFoundException(
+                $"No se encontr\u00f3 la banda con id {calculation.BandaId}.");
+        }
+
         var totalInCents = (int)Math.Round(
             calculation.Total * 100,
             MidpointRounding.AwayFromZero
@@ -116,7 +127,7 @@ public class RecurrenteService : IRecurrenteService
             {
                 new
                 {
-                    name = $"Compra Banda #{calculation.BandaId}",
+                    name = banda.Nombre,
                     amount_in_cents = totalInCents,
                     currency = "GTQ",
                     quantity = 1
