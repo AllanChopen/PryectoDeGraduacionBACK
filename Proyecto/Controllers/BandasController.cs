@@ -161,6 +161,110 @@ public class BandasController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
+    [Authorize(Roles = "bandadmin")]
+    [HttpPut("mi-banda")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<BandaDto>> UpdateMiBanda([FromForm] UpdateMiBandaDto dto)
+    {
+        var bandaIdClaim = User.FindFirst("BandaId")?.Value;
+        if (!int.TryParse(bandaIdClaim, out var bandaId) || bandaId <= 0)
+        {
+            return Unauthorized("No se pudo identificar la banda del usuario.");
+        }
+
+        var banda = await _context.Bandas.FindAsync(bandaId);
+        if (banda is null)
+        {
+            return NotFound("Banda no encontrada.");
+        }
+
+        var imageError = ImageFileValidator.Validate(dto.Portada);
+        if (imageError is not null)
+        {
+            return BadRequest(imageError);
+        }
+
+        var bioImageError = ImageFileValidator.Validate(dto.BiografiaImagen);
+        if (bioImageError is not null)
+        {
+            return BadRequest(bioImageError);
+        }
+
+        var previousImageUrl = banda.ImagenUrl;
+        var previousBioImageUrl = banda.BiografiaImagenUrl;
+        string? newImageKey = null;
+        string? newBioImageKey = null;
+
+        try
+        {
+            if (dto.Portada is not null)
+            {
+                await using var stream = dto.Portada.OpenReadStream();
+                newImageKey = await _s3Service.UploadAsync(
+                    stream,
+                    Path.GetFileName(dto.Portada.FileName),
+                    dto.Portada.ContentType,
+                    "bandas");
+                banda.ImagenUrl = _s3Service.GetPublicUrl(newImageKey);
+            }
+
+            if (dto.BiografiaImagen is not null)
+            {
+                await using var stream = dto.BiografiaImagen.OpenReadStream();
+                newBioImageKey = await _s3Service.UploadAsync(
+                    stream,
+                    Path.GetFileName(dto.BiografiaImagen.FileName),
+                    dto.BiografiaImagen.ContentType,
+                    "bandas");
+                banda.BiografiaImagenUrl = _s3Service.GetPublicUrl(newBioImageKey);
+            }
+
+            banda.Descripcion = dto.Descripcion;
+            banda.Biografia = dto.Biografia;
+            banda.Genero = dto.Genero;
+            banda.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            if (newImageKey is not null)
+            {
+                await _s3Service.DeleteAsync(newImageKey);
+            }
+
+            if (newBioImageKey is not null)
+            {
+                await _s3Service.DeleteAsync(newBioImageKey);
+            }
+
+            throw;
+        }
+
+        if (newImageKey is not null && !string.IsNullOrWhiteSpace(previousImageUrl))
+        {
+            await _s3Service.DeleteByUrlAsync(previousImageUrl);
+        }
+
+        if (newBioImageKey is not null && !string.IsNullOrWhiteSpace(previousBioImageUrl))
+        {
+            await _s3Service.DeleteByUrlAsync(previousBioImageUrl);
+        }
+
+        return Ok(new BandaDto
+        {
+            Uuid = banda.Uuid,
+            Nombre = banda.Nombre,
+            Slug = banda.Slug,
+            Descripcion = banda.Descripcion,
+            Biografia = banda.Biografia,
+            ImagenUrl = banda.ImagenUrl,
+            BiografiaImagenUrl = banda.BiografiaImagenUrl,
+            Genero = banda.Genero,
+            PrecioEnvio = banda.PrecioEnvio
+        });
+    }
+
     [HttpPut("{id:int}")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> Update(int id, [FromForm] UpdateBandaDto dto)

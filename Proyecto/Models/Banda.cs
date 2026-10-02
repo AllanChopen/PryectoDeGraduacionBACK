@@ -53,6 +53,24 @@ public class Banda
 
     [Column("recurrente_onboarding_completed")]
     public bool RecurrenteOnboardingCompleted { get; set; } = false;
+
+    [Column("recurrente_subscription_checkout_id")]
+    public string? RecurrenteSubscriptionCheckoutId { get; set; }
+
+    [Column("recurrente_subscription_id")]
+    public string? RecurrenteSubscriptionId { get; set; }
+
+    [Column("suscripcion_estado")]
+    public string? SuscripcionEstado { get; set; }
+
+    [Column("suscripcion_fin_periodo")]
+    public DateTime? SuscripcionFinPeriodo { get; set; }
+
+    [Column("suscripcion_setup_confirmado")]
+    public bool SuscripcionSetupConfirmado { get; set; }
+
+    [Column("onboarding_completado")]
+    public bool OnboardingCompletado { get; set; }
     
     [Column("precio_envio")]
     public decimal? PrecioEnvio { get; set; }

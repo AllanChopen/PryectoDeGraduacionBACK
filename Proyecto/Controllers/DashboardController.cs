@@ -27,6 +27,11 @@ public class DashboardController : ControllerBase
             return Unauthorized("No se encontró la banda del usuario.");
         }
 
+        if (!await HasActiveBackstageSubscriptionAsync(bandaId))
+        {
+            return StatusCode(403, "Activa tu suscripción de Backstage para entrar al dashboard.");
+        }
+
         var dashboard = await _context.BandaStats
             .Where(stats => stats.Id == bandaId)
             .Select(stats => new DashboardDto
@@ -59,6 +64,11 @@ public class DashboardController : ControllerBase
                 success = false,
                 message = "No se pudo identificar la banda."
             });
+        }
+
+        if (!await HasActiveBackstageSubscriptionAsync(bandaId))
+        {
+            return StatusCode(403, "Activa tu suscripción de Backstage para entrar al dashboard.");
         }
 
         var merchOrders = _context.Ordenes.AsNoTracking()
@@ -208,4 +218,10 @@ public class DashboardController : ControllerBase
             actividadReciente
         });
     }
+
+    private Task<bool> HasActiveBackstageSubscriptionAsync(int bandaId) =>
+        _context.Bandas.AsNoTracking().AnyAsync(b =>
+            b.Id == bandaId &&
+            b.OnboardingCompletado &&
+            b.SuscripcionEstado == "active");
 }

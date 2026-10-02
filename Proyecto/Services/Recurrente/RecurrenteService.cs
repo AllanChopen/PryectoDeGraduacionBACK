@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -34,68 +35,73 @@ public class RecurrenteService : IRecurrenteService
         return content;
     }
 
-    public async Task<string> CreateConnectedAccountAsync(
-        int bandaId,
-        string email,
-        string fullName,
-        string phoneNumber,
-        string name,
-        IFormFile taxRegistrationDocument,
-        IFormFile idCardImage,
-        IFormFile idCardImageBack)
+    public async Task<IReadOnlyList<RecurrenteBankDto>> GetBanksAsync(
+        CancellationToken cancellationToken = default)
     {
-        var banda = await _context.Bandas.FindAsync(bandaId);
-        if (banda is null)
-        {
-            throw new KeyNotFoundException($"No se encontró la banda con id {bandaId}.");
-        }
-
         var client = _httpClientFactory.CreateClient("Recurrente");
-
-        using var form = new MultipartFormDataContent();
-
-        form.Add(new StringContent(email), "email");
-        form.Add(new StringContent(fullName), "full_name");
-        form.Add(new StringContent(phoneNumber), "phone_number");
-        form.Add(new StringContent(name), "name");
-        form.Add(new StringContent("individual"), "account_type");
-        form.Add(new StringContent("daily"), "withdrawals_schedule");
-
-        form.Add(
-            await CreateFileContentAsync(taxRegistrationDocument),
-            "verification[tax_registration_document]",
-            taxRegistrationDocument.FileName
-        );
-
-        form.Add(
-            await CreateFileContentAsync(idCardImage),
-            "verification[id_card_image]",
-            idCardImage.FileName
-        );
-
-        form.Add(
-            await CreateFileContentAsync(idCardImageBack),
-            "verification[id_card_image_back]",
-            idCardImageBack.FileName
-        );
-
-        var response = await client.PostAsync("connected_accounts", form);
-        var content = await response.Content.ReadAsStringAsync();
+        using var response = await client.GetAsync("banks", cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new Exception(
-                $"Recurrente respondió con {(int)response.StatusCode}: {content}"
-            );
+            throw new HttpRequestException(
+                $"Recurrente no pudo listar los bancos ({(int)response.StatusCode}).",
+                null,
+                response.StatusCode);
         }
 
-        var recurrenteAccountId = ExtractConnectedAccountId(content);
-        banda.RecurrenteAccountId = recurrenteAccountId;
-        banda.UpdatedAt = DateTime.UtcNow;
+        var banks = await response.Content.ReadFromJsonAsync<List<RecurrenteBankDto>>(
+            cancellationToken: cancellationToken);
 
-        await _context.SaveChangesAsync();
+        return banks?.Where(bank => !string.IsNullOrWhiteSpace(bank.Name)).ToList()
+            ?? throw new InvalidOperationException("Recurrente no devolvió una lista de bancos válida.");
+    }
 
-        return content;
+    public async Task<RecurrenteConnectedAccountResponse> CreateConnectedAccountAsync(
+        string bandName,
+        ConnectedAccountRequest request)
+    {
+        var client = _httpClientFactory.CreateClient("Recurrente");
+        using var form = new MultipartFormDataContent();
+
+        form.Add(new StringContent(request.Email.Trim()), "email");
+        form.Add(new StringContent(request.FullName.Trim()), "full_name");
+        form.Add(new StringContent(bandName), "name");
+        form.Add(new StringContent(request.AccountType), "account_type");
+        form.Add(new StringContent("daily"), "withdrawals_schedule");
+
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+        {
+            form.Add(new StringContent(request.PhoneNumber.Trim()), "phone_number");
+        }
+
+        form.Add(new StringContent(request.HolderName.Trim()), "bank_account[holder_name]");
+        form.Add(new StringContent(request.BankAccountNumber.Trim()), "bank_account[number]");
+        form.Add(new StringContent(request.BankName.Trim()), "bank_account[bank_name]");
+        form.Add(new StringContent(request.Currency), "bank_account[currency]");
+        form.Add(new StringContent(request.BankAccountType), "bank_account[account_type]");
+        form.Add(new StringContent("true"), "bank_account[is_preferred]");
+
+        AddFile(form, request.TaxRegistrationDocument, "verification[tax_registration_document]");
+        AddFile(form, request.IdCardFront, "verification[id_card_image]");
+        AddFile(form, request.IdCardBack, "verification[id_card_image_back]");
+
+        using var response = await client.PostAsync("connected_accounts", form);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Recurrente rechazó la cuenta conectada ({(int)response.StatusCode}).",
+                null,
+                response.StatusCode);
+        }
+
+        var content = await response.Content.ReadAsStringAsync();
+        var account = JsonSerializer.Deserialize<RecurrenteConnectedAccountResponse>(content);
+        if (account is null || string.IsNullOrWhiteSpace(account.Id))
+        {
+            throw new InvalidOperationException("Recurrente no devolvió un ID de cuenta válido.");
+        }
+
+        return account;
     }
 
     public async Task<RecurrenteCheckoutResponse> CreateCheckoutAsync(
@@ -201,36 +207,83 @@ public class RecurrenteService : IRecurrenteService
         return checkout;
     }
 
-    private static string ExtractConnectedAccountId(string content)
+    public async Task<RecurrenteCheckoutResponse> CreateBackstageSubscriptionCheckoutAsync(
+        string successUrl,
+        string cancelUrl)
     {
-        using var document = JsonDocument.Parse(content);
+        const int backstageMonthlyPriceCents = 9_900;
 
-        if (document.RootElement.TryGetProperty("id", out var idElement))
+        var client = _httpClientFactory.CreateClient("Recurrente");
+        var payload = new
         {
-            var accountId = idElement.GetString();
-            if (!string.IsNullOrWhiteSpace(accountId))
+            items = new[]
             {
-                return accountId;
-            }
+                new
+                {
+                    name = "Backstage",
+                    amount_in_cents = backstageMonthlyPriceCents,
+                    currency = "GTQ",
+                    quantity = 1,
+                    charge_type = "recurring",
+                    billing_interval = "month",
+                    billing_interval_count = 1,
+                    free_trial_interval = "month",
+                    free_trial_interval_count = 1,
+                    payment_method_types = new[] { "card" }
+                }
+            },
+            success_url = successUrl,
+            cancel_url = cancelUrl
+        };
+
+        using var response = await client.PostAsJsonAsync("checkouts", payload);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Recurrente rechazó el checkout de suscripción ({(int)response.StatusCode}).",
+                null,
+                response.StatusCode);
         }
 
-        throw new Exception("La respuesta de Recurrente no contiene un id de cuenta válido.");
+        var checkout = await response.Content.ReadFromJsonAsync<RecurrenteCheckoutResponse>();
+        if (checkout is null || string.IsNullOrWhiteSpace(checkout.Id) ||
+            string.IsNullOrWhiteSpace(checkout.CheckoutUrl))
+        {
+            throw new InvalidOperationException("Recurrente no devolvió un checkout válido.");
+        }
+
+        return checkout;
     }
 
-    private static async Task<ByteArrayContent> CreateFileContentAsync(IFormFile file)
+    public async Task<RecurrenteSubscriptionResponse> GetSubscriptionAsync(string subscriptionId)
     {
-        await using var stream = file.OpenReadStream();
-        using var memoryStream = new MemoryStream();
-        await stream.CopyToAsync(memoryStream);
-
-        var content = new ByteArrayContent(memoryStream.ToArray());
-
-        if (!string.IsNullOrWhiteSpace(file.ContentType))
+        var client = _httpClientFactory.CreateClient("Recurrente");
+        using var response = await client.GetAsync($"subscriptions/{Uri.EscapeDataString(subscriptionId)}");
+        if (!response.IsSuccessStatusCode)
         {
-            content.Headers.ContentType =
-                new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+            throw new HttpRequestException(
+                $"No se pudo consultar la suscripción ({(int)response.StatusCode}).",
+                null,
+                response.StatusCode);
         }
 
-        return content;
+        var subscription = await response.Content.ReadFromJsonAsync<RecurrenteSubscriptionResponse>();
+        if (subscription is null || subscription.Id != subscriptionId)
+        {
+            throw new InvalidOperationException("Recurrente no devolvió la suscripción solicitada.");
+        }
+
+        return subscription;
+    }
+
+    private static void AddFile(MultipartFormDataContent form, IFormFile file, string fieldName)
+    {
+        var content = new StreamContent(file.OpenReadStream());
+        if (!string.IsNullOrWhiteSpace(file.ContentType))
+        {
+            content.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+        }
+
+        form.Add(content, fieldName, Path.GetFileName(file.FileName));
     }
 }
