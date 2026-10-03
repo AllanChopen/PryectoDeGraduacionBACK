@@ -62,49 +62,210 @@ public class RecurrenteController : ControllerBase
         }
     }
 
-    [HttpPost("connected-account/{bandaId:int}")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "bandadmin")]
+    [HttpPost("connected-account")]
     [Consumes("multipart/form-data")]
     [RequestFormLimits(MultipartBodyLengthLimit = 52_428_800)]
     [RequestSizeLimit(52_428_800)]
     public async Task<IActionResult> CreateConnectedAccount(
-        int bandaId,
-        [FromForm] CreateConnectedAccountRequest request)
+        [FromForm] ConnectedAccountRequest request)
     {
+        var bandaIdClaim = User.FindFirst("BandaId")?.Value;
+        if (!int.TryParse(bandaIdClaim, out var bandaId) || bandaId <= 0)
+        {
+            return Unauthorized("No se pudo identificar la banda del usuario.");
+        }
+
+        var banda = await _context.Bandas.FirstOrDefaultAsync(b => b.Id == bandaId);
+        if (banda is null)
+        {
+            return NotFound("Banda no encontrada.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(banda.RecurrenteAccountId))
+        {
+            return Conflict("La banda ya tiene una cuenta de Recurrente.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FullName) ||
+            string.IsNullOrWhiteSpace(request.HolderName) ||
+            string.IsNullOrWhiteSpace(request.BankAccountNumber) ||
+            string.IsNullOrWhiteSpace(request.BankName) ||
+            request.TaxRegistrationDocument is null || request.TaxRegistrationDocument.Length == 0 ||
+            request.IdCardFront is null || request.IdCardFront.Length == 0 ||
+            request.IdCardBack is null || request.IdCardBack.Length == 0)
+        {
+            return BadRequest("Completa los datos bancarios y adjunta los tres documentos requeridos.");
+        }
+
         try
         {
             var response = await _recurrenteService.CreateConnectedAccountAsync(
-                bandaId,
-                request.Email,
-                request.FullName,
-                request.PhoneNumber,
-                request.Name,
-                request.TaxRegistrationDocument,
-                request.IdCardImage,
-                request.IdCardImageBack
-            );
+                banda.Nombre,
+                request);
+
+            banda.RecurrenteAccountId = response.Id;
+            banda.RecurrenteAccountStatus = response.Status;
+            banda.RecurrenteOnboardingCompleted = response.OnboardingCompleted;
+            banda.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
 
             return Ok(new
             {
                 success = true,
-                recurrenteResponse = response
+                accountId = response.Id,
+                status = response.Status,
+                onboardingCompleted = response.OnboardingCompleted
             });
         }
-        catch (KeyNotFoundException ex)
+        catch (HttpRequestException ex) when (ex.StatusCode is >= HttpStatusCode.BadRequest and < HttpStatusCode.InternalServerError)
         {
-            return NotFound(new
+            return BadRequest(new
             {
                 success = false,
-                error = ex.Message
+                error = "Recurrente rechazó los datos o documentos enviados. Revisa el formulario."
             });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, new
             {
                 success = false,
-                error = ex.Message
+                error = "No se pudo configurar la cuenta de Recurrente."
             });
         }
+    }
+
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "bandadmin")]
+    [HttpGet("banks")]
+    public async Task<ActionResult<IReadOnlyList<RecurrenteBankDto>>> GetBanks(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _recurrenteService.GetBanksAsync(cancellationToken));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException)
+        {
+            return StatusCode(502, new { message = "No se pudo obtener la lista de bancos de Recurrente." });
+        }
+    }
+
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "bandadmin")]
+    [HttpPost("subscription/checkout")]
+    public async Task<IActionResult> CreateBackstageSubscriptionCheckout()
+    {
+        var bandaIdClaim = User.FindFirst("BandaId")?.Value;
+        if (!int.TryParse(bandaIdClaim, out var bandaId) || bandaId <= 0)
+        {
+            return Unauthorized("No se pudo identificar la banda del usuario.");
+        }
+
+        var banda = await _context.Bandas.FindAsync(bandaId);
+        if (banda is null)
+        {
+            return NotFound("Banda no encontrada.");
+        }
+
+        if (string.IsNullOrWhiteSpace(banda.RecurrenteAccountId))
+        {
+            return Conflict("Configura primero la cuenta para recibir pagos.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(banda.RecurrenteSubscriptionId))
+        {
+            return Conflict("La banda ya tiene una suscripción de Backstage.");
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(banda.RecurrenteSubscriptionCheckoutId))
+            {
+                var existing = await _recurrenteService.GetCheckoutAsync(
+                    banda.RecurrenteSubscriptionCheckoutId);
+                if (existing.Status == "unpaid" && !string.IsNullOrWhiteSpace(existing.CheckoutUrl))
+                {
+                    return Ok(new { checkoutId = existing.Id, checkoutUrl = existing.CheckoutUrl });
+                }
+
+                if (existing.Status != "expired")
+                {
+                    return Conflict("El checkout anterior está en proceso; espera la confirmación.");
+                }
+            }
+
+            var baseUrl = _configuration["Frontend:BaseUrl"]?.TrimEnd('/');
+            if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var frontendUri) ||
+                (frontendUri.Scheme != Uri.UriSchemeHttps && frontendUri.Scheme != Uri.UriSchemeHttp))
+            {
+                return StatusCode(500, "No se configuró Frontend:BaseUrl.");
+            }
+
+            var checkout = await _recurrenteService.CreateBackstageSubscriptionCheckoutAsync(
+                $"{baseUrl}/onboarding/completed",
+                $"{baseUrl}/onboarding/subscription");
+
+            banda.RecurrenteSubscriptionCheckoutId = checkout.Id;
+            banda.SuscripcionSetupConfirmado = false;
+            banda.SuscripcionEstado = "pending";
+            banda.SuscripcionFinPeriodo = null;
+            banda.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { checkoutId = checkout.Id, checkoutUrl = checkout.CheckoutUrl });
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(502, "No se pudo crear o consultar el checkout en Recurrente.");
+        }
+    }
+
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "bandadmin")]
+    [HttpGet("subscription/status")]
+    public async Task<IActionResult> GetBackstageSubscriptionStatus()
+    {
+        var bandaIdClaim = User.FindFirst("BandaId")?.Value;
+        if (!int.TryParse(bandaIdClaim, out var bandaId) || bandaId <= 0)
+        {
+            return Unauthorized();
+        }
+
+        var banda = await _context.Bandas.FindAsync(bandaId);
+        if (banda is null)
+        {
+            return NotFound();
+        }
+
+        if (!string.IsNullOrWhiteSpace(banda.RecurrenteSubscriptionId))
+        {
+            try
+            {
+                var subscription = await _recurrenteService.GetSubscriptionAsync(
+                    banda.RecurrenteSubscriptionId);
+                banda.SuscripcionEstado = subscription.Status;
+                banda.SuscripcionFinPeriodo = subscription.CurrentPeriodEnd;
+                if (banda.SuscripcionSetupConfirmado && subscription.Status == "active")
+                {
+                    banda.OnboardingCompletado = true;
+                }
+
+                banda.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            catch (HttpRequestException)
+            {
+                return StatusCode(502, "No se pudo consultar la suscripción en Recurrente.");
+            }
+        }
+
+        return Ok(new
+        {
+            subscriptionId = banda.RecurrenteSubscriptionId,
+            status = banda.SuscripcionEstado,
+            currentPeriodEnd = banda.SuscripcionFinPeriodo,
+            onboardingCompleted = banda.OnboardingCompletado,
+            hasAccess = banda.OnboardingCompletado && banda.SuscripcionEstado == "active"
+        });
     }
 
     [HttpPost("checkout/productos")]
@@ -491,8 +652,26 @@ public class RecurrenteController : ControllerBase
         // 2. DESERIALIZAR
         // ============================
 
+        using var document = JsonDocument.Parse(body);
+        var payload = document.RootElement;
+        if (payload.TryGetProperty("data", out var nestedData) &&
+            nestedData.ValueKind == JsonValueKind.Object)
+        {
+            payload = nestedData;
+        }
+
+        var eventType = payload.TryGetProperty("event_type", out var eventTypeElement)
+            ? eventTypeElement.GetString()
+            : null;
+
+        if (eventType is "setup_intent.succeeded" or "setup_intent.cancelled" ||
+            eventType?.StartsWith("subscription.", StringComparison.Ordinal) == true)
+        {
+            return await HandleBackstageSubscriptionWebhookAsync(payload, eventType!);
+        }
+
         var webhookEvent =
-            JsonSerializer.Deserialize<RecurrenteWebhookEvent>(body);
+            JsonSerializer.Deserialize<RecurrenteWebhookEvent>(payload.GetRawText());
 
         if (webhookEvent == null)
             return BadRequest();
@@ -680,5 +859,105 @@ public class RecurrenteController : ControllerBase
             success = true,
             message = "Pago procesado correctamente."
         });
+    }
+
+    private async Task<IActionResult> HandleBackstageSubscriptionWebhookAsync(
+        JsonElement payload,
+        string eventType)
+    {
+        if (eventType is "setup_intent.succeeded" or "setup_intent.cancelled")
+        {
+            if (!payload.TryGetProperty("checkout", out var checkout) ||
+                !checkout.TryGetProperty("id", out var checkoutIdValue))
+            {
+                return Ok();
+            }
+
+            var checkoutId = checkoutIdValue.GetString();
+            var banda = await _context.Bandas.FirstOrDefaultAsync(b =>
+                b.RecurrenteSubscriptionCheckoutId == checkoutId);
+            if (banda is null)
+            {
+                return Ok();
+            }
+
+            if (eventType == "setup_intent.succeeded" &&
+                payload.TryGetProperty("status", out var setupStatus) &&
+                setupStatus.GetString() == "succeeded")
+            {
+                banda.SuscripcionSetupConfirmado = true;
+                if (!string.IsNullOrWhiteSpace(banda.RecurrenteSubscriptionId) &&
+                    banda.SuscripcionEstado == "active")
+                {
+                    banda.OnboardingCompletado = true;
+                }
+            }
+            else if (eventType == "setup_intent.cancelled" &&
+                     !banda.SuscripcionSetupConfirmado)
+            {
+                banda.SuscripcionEstado = "setup_failed";
+            }
+
+            banda.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+        if (eventType is not ("subscription.create" or "subscription.past_due" or
+            "subscription.cancel" or "subscription.pause" or "subscription.unpause" or
+            "subscription.reactivate" or "subscription.update"))
+        {
+            return Ok();
+        }
+
+        if (!payload.TryGetProperty("id", out var subscriptionIdValue))
+        {
+            return Ok();
+        }
+
+        var subscriptionId = subscriptionIdValue.GetString();
+        if (string.IsNullOrWhiteSpace(subscriptionId))
+        {
+            return Ok();
+        }
+
+        var subscription = await _recurrenteService.GetSubscriptionAsync(subscriptionId);
+        Banda? target;
+        if (eventType == "subscription.create")
+        {
+            var checkoutId = subscription.Checkout?.Id;
+            target = string.IsNullOrWhiteSpace(checkoutId)
+                ? null
+                : await _context.Bandas.FirstOrDefaultAsync(b =>
+                    b.RecurrenteSubscriptionCheckoutId == checkoutId);
+            if (target is not null &&
+                !string.IsNullOrWhiteSpace(target.RecurrenteSubscriptionId) &&
+                target.RecurrenteSubscriptionId != subscriptionId)
+            {
+                return Ok();
+            }
+        }
+        else
+        {
+            target = await _context.Bandas.FirstOrDefaultAsync(b =>
+                b.RecurrenteSubscriptionId == subscriptionId);
+        }
+
+        if (target is null)
+        {
+            return Ok();
+        }
+
+        target.RecurrenteSubscriptionId = subscription.Id;
+        target.SuscripcionEstado = subscription.Status;
+        target.SuscripcionFinPeriodo = subscription.CurrentPeriodEnd;
+        if (target.SuscripcionSetupConfirmado && subscription.Status == "active")
+        {
+            target.OnboardingCompletado = true;
+        }
+
+        target.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Ok();
     }
 }

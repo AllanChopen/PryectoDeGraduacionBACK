@@ -8,16 +8,11 @@ public interface IRecurrenteService
 {
     Task<string> TestConnectionAsync();
 
-    Task<string> CreateConnectedAccountAsync(
-        int bandaId,
-        string email,
-        string fullName,
-        string phoneNumber,
-        string name,
-        IFormFile taxRegistrationDocument,
-        IFormFile idCardImage,
-        IFormFile idCardImageBack
-    );
+    Task<IReadOnlyList<RecurrenteBankDto>> GetBanksAsync(CancellationToken cancellationToken = default);
+
+    Task<RecurrenteConnectedAccountResponse> CreateConnectedAccountAsync(
+        string bandName,
+        ConnectedAccountRequest request);
 
     Task<RecurrenteCheckoutResponse> CreateCheckoutAsync(
         CheckoutCalculation calculation,
@@ -27,4 +22,10 @@ public interface IRecurrenteService
 
     Task<RecurrenteCheckoutResponse> GetCheckoutAsync(
         string checkoutId);
+
+    Task<RecurrenteCheckoutResponse> CreateBackstageSubscriptionCheckoutAsync(
+        string successUrl,
+        string cancelUrl);
+
+    Task<RecurrenteSubscriptionResponse> GetSubscriptionAsync(string subscriptionId);
 }

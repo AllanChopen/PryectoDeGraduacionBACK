@@ -1,11 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Proyecto.DTOs;
 using Proyecto.Models;
 using Proyecto.Services;
 using Proyecto.Services.Email;
+using PryectoDeGraduacionBACK.Services.S3;
 
 namespace Proyecto.Controllers;
 
@@ -18,19 +20,124 @@ public class AuthController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly IConfiguration _config;
     private readonly ILogger<AuthController> _logger;
+    private readonly IS3Service _s3Service;
 
     public AuthController(
         AppDbContext context,
         JwtTokenService tokenService,
         IEmailService emailService,
         IConfiguration config,
-        ILogger<AuthController> logger)
+        ILogger<AuthController> logger,
+        IS3Service s3Service)
     {
         _context = context;
         _tokenService = tokenService;
         _emailService = emailService;
         _config = config;
         _logger = logger;
+        _s3Service = s3Service;
+    }
+
+    [HttpPost("signup")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Signup([FromForm] SignupDto dto)
+    {
+        var email = dto.Email.Trim().ToLowerInvariant();
+        var slug = NormalizeSlug(dto.Slug);
+
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            return BadRequest(new { message = "El slug no es válido." });
+        }
+
+        if (await _context.Usuarios.AnyAsync(u => u.Email.ToLower() == email))
+        {
+            return Conflict(new { message = "El email ya está registrado." });
+        }
+
+        if (await _context.Bandas.AnyAsync(b => b.Slug.ToLower() == slug))
+        {
+            return Conflict(new { message = "El slug ya está ocupado." });
+        }
+
+        var imageError = ImageFileValidator.Validate(dto.Logo);
+        if (imageError is not null)
+        {
+            return BadRequest(imageError);
+        }
+
+        string? logoKey = null;
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
+        {
+            string? logoUrl = null;
+            if (dto.Logo is not null)
+            {
+                await using var stream = dto.Logo.OpenReadStream();
+                logoKey = await _s3Service.UploadAsync(
+                    stream,
+                    Path.GetFileName(dto.Logo.FileName),
+                    dto.Logo.ContentType,
+                    "bandas");
+                logoUrl = _s3Service.GetPublicUrl(logoKey);
+            }
+
+            var usuario = new Usuario
+            {
+                Nombre = dto.Nombre.Trim(),
+                Email = email,
+                Password = PasswordHasher.Hash(dto.Password),
+                Rol = "bandadmin",
+                Uuid = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Timestamp = DateTime.UtcNow
+            };
+
+            _context.Usuarios.Add(usuario);
+            await _context.SaveChangesAsync();
+
+            var banda = new Banda
+            {
+                Uuid = Guid.NewGuid(),
+                Nombre = dto.BandaNombre.Trim(),
+                Slug = slug,
+                ImagenUrl = logoUrl,
+                UsuarioId = usuario.Id,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Timestamp = DateTime.UtcNow
+            };
+
+            _context.Bandas.Add(banda);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            var token = _tokenService.CreateToken(usuario, banda.Id);
+            return StatusCode(StatusCodes.Status201Created, new
+            {
+                token,
+                user = ToDto(usuario),
+                banda = new BandaDto
+                {
+                    Uuid = banda.Uuid,
+                    Nombre = banda.Nombre,
+                    Slug = banda.Slug,
+                    ImagenUrl = banda.ImagenUrl
+                }
+            });
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            if (logoKey is not null)
+            {
+                await _s3Service.DeleteAsync(logoKey);
+            }
+
+            throw;
+        }
     }
 
     [HttpPost("login")]
@@ -201,5 +308,23 @@ public class AuthController : ControllerBase
         var secret = Encoding.UTF8.GetBytes(_config["Jwt:Key"]!);
         var value = Encoding.UTF8.GetBytes($"password-reset:{userId}:{code}");
         return HMACSHA256.HashData(secret, value);
+    }
+
+    private static UsuarioDto ToDto(Usuario user) => new()
+    {
+        Id = user.Id,
+        Uuid = user.Uuid,
+        Nombre = user.Nombre,
+        Email = user.Email,
+        Rol = user.Rol,
+        CreatedAt = user.CreatedAt,
+        UpdatedAt = user.UpdatedAt
+    };
+
+    private static string NormalizeSlug(string value)
+    {
+        var slug = value.Trim().ToLowerInvariant();
+        slug = Regex.Replace(slug, @"[^a-z0-9]+", "-");
+        return slug.Trim('-');
     }
 }
