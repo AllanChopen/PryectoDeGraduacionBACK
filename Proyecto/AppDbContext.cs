@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
 
     public DbSet<DbTest> DbTests => Set<DbTest>();
     public DbSet<Usuario> Usuarios => Set<Usuario>();
+    public DbSet<PasswordResetCode> PasswordResetCodes => Set<PasswordResetCode>();
     public DbSet<Banda> Bandas => Set<Banda>();
     public DbSet<Subscriptor> Subscriptores => Set<Subscriptor>();
     public DbSet<Producto> Productos => Set<Producto>();

@@ -67,12 +67,14 @@ public class BandasController : ControllerBase
         });
     }
 
+    [Authorize(Roles = "admin")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Banda>>> GetAll()
     {
         return Ok(await _context.Bandas.AsNoTracking().ToListAsync());
     }
 
+    [Authorize(Roles = "admin")]
     [HttpGet("{id:int}")]
     public async Task<ActionResult<Banda>> GetById(int id)
     {
@@ -80,6 +82,7 @@ public class BandasController : ControllerBase
         return item is null ? NotFound() : Ok(item);
     }
 
+    [Authorize(Roles = "admin")]
     [HttpPost]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<Banda>> Create([FromForm] CreateBandaDto dto)
@@ -94,6 +97,12 @@ public class BandasController : ControllerBase
         if (bioImageError is not null)
         {
             return BadRequest(bioImageError);
+        }
+
+        var logoError = ImageFileValidator.Validate(dto.Logo);
+        if (logoError is not null)
+        {
+            return BadRequest(logoError);
         }
 
         string? imageKey = null;
@@ -124,6 +133,20 @@ public class BandasController : ControllerBase
             bioImageUrl = _s3Service.GetPublicUrl(bioImageKey);
         }
 
+        string? logoKey = null;
+        string? logoUrl = dto.LogoUrl;
+
+        if (dto.Logo is not null)
+        {
+            await using var stream = dto.Logo.OpenReadStream();
+            logoKey = await _s3Service.UploadAsync(
+                stream,
+                Path.GetFileName(dto.Logo.FileName),
+                dto.Logo.ContentType,
+                "bandas");
+            logoUrl = _s3Service.GetPublicUrl(logoKey);
+        }
+
         var item = new Banda
         {
             Uuid = Guid.NewGuid(),
@@ -131,6 +154,7 @@ public class BandasController : ControllerBase
             Descripcion = dto.Descripcion,
             Biografia = dto.Biografia,
             ImagenUrl = imageUrl,
+            LogoUrl = logoUrl,
             BiografiaImagenUrl = bioImageUrl,
             Genero = dto.Genero,
             UsuarioId = dto.UsuarioId,
@@ -155,12 +179,17 @@ public class BandasController : ControllerBase
             {
                 await _s3Service.DeleteAsync(bioImageKey);
             }
+            if (logoKey is not null)
+            {
+                await _s3Service.DeleteAsync(logoKey);
+            }
             throw;
         }
 
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, item);
     }
 
+    [Authorize(Roles = "admin")]
     [HttpPut("{id:int}")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> Update(int id, [FromForm] UpdateBandaDto dto)
@@ -181,6 +210,12 @@ public class BandasController : ControllerBase
         if (bioImageError is not null)
         {
             return BadRequest(bioImageError);
+        }
+
+        var logoError = ImageFileValidator.Validate(dto.Logo);
+        if (logoError is not null)
+        {
+            return BadRequest(logoError);
         }
 
         var previousImageUrl = item.ImagenUrl;
@@ -214,7 +249,26 @@ public class BandasController : ControllerBase
                 "bandas");
             item.BiografiaImagenUrl = _s3Service.GetPublicUrl(newBioImageKey);
         }
-        else if (dto.BiografiaImagenUrl is not null)
+
+        var previousLogoUrl = item.LogoUrl;
+        string? newLogoKey = null;
+
+        if (dto.Logo is not null)
+        {
+            await using var stream = dto.Logo.OpenReadStream();
+            newLogoKey = await _s3Service.UploadAsync(
+                stream,
+                Path.GetFileName(dto.Logo.FileName),
+                dto.Logo.ContentType,
+                "bandas");
+            item.LogoUrl = _s3Service.GetPublicUrl(newLogoKey);
+        }
+        else if (dto.LogoUrl is not null)
+        {
+            item.LogoUrl = dto.LogoUrl;
+        }
+
+        if (dto.BiografiaImagen is null && dto.BiografiaImagenUrl is not null)
         {
             item.BiografiaImagenUrl = dto.BiografiaImagenUrl;
         }
@@ -241,6 +295,10 @@ public class BandasController : ControllerBase
             {
                 await _s3Service.DeleteAsync(newBioImageKey);
             }
+            if (newLogoKey is not null)
+            {
+                await _s3Service.DeleteAsync(newLogoKey);
+            }
             throw;
         }
 
@@ -252,6 +310,11 @@ public class BandasController : ControllerBase
         if (newBioImageKey is not null && !string.IsNullOrWhiteSpace(previousBioImageUrl))
         {
             await _s3Service.DeleteByUrlAsync(previousBioImageUrl);
+        }
+
+        if (newLogoKey is not null && !string.IsNullOrWhiteSpace(previousLogoUrl))
+        {
+            await _s3Service.DeleteByUrlAsync(previousLogoUrl);
         }
 
         return NoContent();
@@ -278,6 +341,10 @@ public class BandasController : ControllerBase
         {
             await _s3Service.DeleteByUrlAsync(item.BiografiaImagenUrl);
         }
+        if (!string.IsNullOrWhiteSpace(item.LogoUrl))
+        {
+            await _s3Service.DeleteByUrlAsync(item.LogoUrl);
+        }
 
         return NoContent();
     }
@@ -299,6 +366,7 @@ public class BandasController : ControllerBase
                     Descripcion = x.Descripcion,
                     Biografia = x.Biografia,
                     ImagenUrl = x.ImagenUrl,
+                    LogoUrl = x.LogoUrl,
                     BiografiaImagenUrl = x.BiografiaImagenUrl,
                     Genero = x.Genero,
                     PrecioEnvio = x.PrecioEnvio

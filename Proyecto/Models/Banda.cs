@@ -23,6 +23,12 @@ public class Banda
     [Column("imagen_url")]
     public string? ImagenUrl { get; set; }
 
+    [Column("logo_url")]
+    public string? LogoUrl { get; set; }
+
+    [Column("onboarding_step")]
+    public int OnboardingStep { get; set; } = 4;
+
     [Column("genero")]
     public string? Genero { get; set; }
 

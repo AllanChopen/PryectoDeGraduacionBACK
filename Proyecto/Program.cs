@@ -13,6 +13,9 @@ using System.Text;
 using Proyecto.Models;
 using Proyecto.Services.Checkout;
 using Proyecto.Services.Stock;
+using Proyecto.Services;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 var awsRegion = builder.Configuration["AWS:Region"];
@@ -22,6 +25,7 @@ var awsSecretKey = builder.Configuration["AWS:SecretKey"];
 const long maxUploadSize = 50 * 1024 * 1024;
 
 builder.Services.AddScoped<CheckoutCalculatorService>();
+builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<StockReservationService>();
 builder.Services.AddHostedService<StockReservationWorker>();
 
@@ -100,6 +104,34 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)
             )
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var userIdText = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                    ?? context.Principal?.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                var tokenVersionText = context.Principal?.FindFirst("TokenVersion")?.Value;
+                if (!int.TryParse(userIdText, out var userId) ||
+                    !int.TryParse(tokenVersionText ?? "0", out var tokenVersion))
+                {
+                    context.Fail("Token inválido.");
+                    return;
+                }
+
+                var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                var currentVersion = await db.Usuarios
+                    .AsNoTracking()
+                    .Where(user => user.Id == userId)
+                    .Select(user => (int?)user.TokenVersion)
+                    .FirstOrDefaultAsync();
+
+                if (currentVersion != tokenVersion)
+                {
+                    context.Fail("La sesión ya no es válida.");
+                }
+            }
+        };
     });
 builder.Services.AddAuthorization();
 
@@ -132,10 +164,17 @@ builder.Services.AddCors(options =>
         }
         else
         {
+            var origins = builder.Configuration.GetSection("Frontend:Origins").Get<string[]>();
+            if (origins is null || origins.Length == 0)
+            {
+                var baseUrl = builder.Configuration["Frontend:BaseUrl"];
+                origins = Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri)
+                    ? [uri.GetLeftPart(UriPartial.Authority)]
+                    : [];
+            }
+
             policy
-                .WithOrigins(
-                    "https://TU-FRONTEND-DOMINIO.com"
-                )
+                .WithOrigins(origins)
                 .AllowAnyHeader()
                 .AllowAnyMethod();
         }

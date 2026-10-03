@@ -20,6 +20,9 @@ public class Usuario
     [Column("password")]
     public string Password { get; set; } = string.Empty;
 
+    [Column("token_version")]
+    public int TokenVersion { get; set; }
+
     [Column("rol")]
     public string Rol { get; set; } = string.Empty;
 

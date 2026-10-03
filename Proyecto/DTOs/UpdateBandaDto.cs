@@ -8,8 +8,10 @@ public class UpdateBandaDto
     public string? Descripcion { get; set; }
     public string? Biografia { get; set; }
     public string? ImagenUrl { get; set; }
+    public string? LogoUrl { get; set; }
     public string? BiografiaImagenUrl { get; set; }
     public IFormFile? Imagen { get; set; }
+    public IFormFile? Logo { get; set; }
     public IFormFile? BiografiaImagen { get; set; }
     public string? Genero { get; set; }
     public int UsuarioId { get; set; }

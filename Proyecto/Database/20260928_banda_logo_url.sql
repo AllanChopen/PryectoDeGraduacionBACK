@@ -1,0 +1,2 @@
+ALTER TABLE banda
+ADD COLUMN logo_url TEXT NULL;
